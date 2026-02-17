@@ -1,7 +1,7 @@
 .{
     .name = .zlm,
     .version = "0.1.0",
-    .fingerprint = 0xa3e7b2d41f8c6905,
+    .fingerprint = 0x5c6c0dda83873791,
     .minimum_zig_version = "0.16.0-dev.2623+27eec9bd6",
     .dependencies = .{},
     .paths = .{
