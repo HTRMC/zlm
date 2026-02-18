@@ -7,6 +7,38 @@ const iterations = 10_000_000;
 const float_types = .{ f16, f32, f64, f128 };
 const int_types = .{ i8, i16, i32, i64, u8, u16, u32, u64 };
 
+const Result = struct {
+    name: []const u8,
+    ns_per_op: f64,
+    ops_per_sec: f64,
+    is_separator: bool,
+};
+
+var results: [256]Result = undefined;
+var result_count: usize = 0;
+
+fn bench(io: std.Io, name: []const u8, comptime func: fn () void) void {
+    const start = std.Io.Clock.Timestamp.now(io, .awake);
+
+    for (0..iterations) |_| {
+        @call(.never_inline, func, .{});
+    }
+
+    const elapsed = start.durationTo(std.Io.Clock.Timestamp.now(io, .awake));
+    const elapsed_ns: i96 = elapsed.raw.nanoseconds;
+    const ns_f: f64 = @floatFromInt(elapsed_ns);
+    const ns_per_op = ns_f / @as(f64, @floatFromInt(iterations));
+    const ops_per_sec = @as(f64, @floatFromInt(iterations)) / (ns_f / 1_000_000_000.0);
+
+    results[result_count] = .{ .name = name, .ns_per_op = ns_per_op, .ops_per_sec = ops_per_sec, .is_separator = false };
+    result_count += 1;
+}
+
+fn separator() void {
+    results[result_count] = .{ .name = "", .ns_per_op = 0, .ops_per_sec = 0, .is_separator = true };
+    result_count += 1;
+}
+
 fn Vec2Bench(comptime T: type) type {
     const V = zlm.Vec2(T);
     return struct {
@@ -67,10 +99,6 @@ fn runVecBench(comptime name: []const u8, comptime B: type, comptime is_float: b
 pub fn main(init: std.process.Init) void {
     const io = init.io;
 
-    print("\n", .{});
-    print("  zlm benchmark — {d} iterations per test\n", .{iterations});
-    print("  ──────────────────────────────────────────────────\n", .{});
-
     // Vec2
     inline for (float_types) |T| {
         runVecBench("Vec2(" ++ @typeName(T) ++ ")", Vec2Bench(T), true, false, io);
@@ -78,6 +106,8 @@ pub fn main(init: std.process.Init) void {
     inline for (int_types) |T| {
         runVecBench("Vec2(" ++ @typeName(T) ++ ")", Vec2Bench(T), false, false, io);
     }
+
+    separator();
 
     // Vec3
     inline for (float_types) |T| {
@@ -87,6 +117,8 @@ pub fn main(init: std.process.Init) void {
         runVecBench("Vec3(" ++ @typeName(T) ++ ")", Vec3Bench(T), false, true, io);
     }
 
+    separator();
+
     // Vec4
     inline for (float_types) |T| {
         runVecBench("Vec4(" ++ @typeName(T) ++ ")", Vec4Bench(T), true, false, io);
@@ -95,29 +127,24 @@ pub fn main(init: std.process.Init) void {
         runVecBench("Vec4(" ++ @typeName(T) ++ ")", Vec4Bench(T), false, false, io);
     }
 
+    separator();
+
     // Mat4
-    print("  ──────────────────────────────────────────────────\n", .{});
     bench(io, "Mat4(f64).mul", benchMat4Mul);
     bench(io, "Mat4(f64).perspective", benchMat4Perspective);
     bench(io, "Mat4(f64).lookAt", benchMat4LookAt);
 
+    // Print all results
     print("\n", .{});
-}
-
-fn bench(io: std.Io, name: []const u8, comptime func: fn () void) void {
-    const start = std.Io.Clock.Timestamp.now(io, .awake);
-
-    for (0..iterations) |_| {
-        @call(.never_inline, func, .{});
+    print("  zlm benchmark — {d} iterations per test\n", .{iterations});
+    for (results[0..result_count]) |r| {
+        if (r.is_separator) {
+            print("  ──────────────────────────────────────────────────\n", .{});
+        } else {
+            print("  {s:>28}: {d:8.2} ns/op  ({d:12.0} ops/s)\n", .{ r.name, r.ns_per_op, r.ops_per_sec });
+        }
     }
-
-    const elapsed = start.durationTo(std.Io.Clock.Timestamp.now(io, .awake));
-    const elapsed_ns: i96 = elapsed.raw.nanoseconds;
-    const ns_f: f64 = @floatFromInt(elapsed_ns);
-    const ns_per_op = ns_f / @as(f64, @floatFromInt(iterations));
-    const ops_per_sec = @as(f64, @floatFromInt(iterations)) / (ns_f / 1_000_000_000.0);
-
-    print("  {s:>28}: {d:8.2} ns/op  ({d:12.0} ops/s)\n", .{ name, ns_per_op, ops_per_sec });
+    print("\n", .{});
 }
 
 // ── Mat4 benchmarks ──
