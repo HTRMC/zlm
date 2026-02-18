@@ -1,139 +1,189 @@
 const std = @import("std");
 
-pub const Vec3 = struct {
-    x: f32,
-    y: f32,
-    z: f32,
-
-    pub fn init(x: f32, y: f32, z: f32) Vec3 {
-        return Vec3{ .x = x, .y = y, .z = z };
-    }
-
-    pub fn add(a: Vec3, b: Vec3) Vec3 {
-        return Vec3{
-            .x = a.x + b.x,
-            .y = a.y + b.y,
-            .z = a.z + b.z,
-        };
-    }
-
-    pub fn sub(a: Vec3, b: Vec3) Vec3 {
-        return Vec3{
-            .x = a.x - b.x,
-            .y = a.y - b.y,
-            .z = a.z - b.z,
-        };
-    }
-
-    pub fn scale(v: Vec3, s: f32) Vec3 {
-        return Vec3{
-            .x = v.x * s,
-            .y = v.y * s,
-            .z = v.z * s,
-        };
-    }
-
-    pub fn dot(a: Vec3, b: Vec3) f32 {
-        return a.x * b.x + a.y * b.y + a.z * b.z;
-    }
-
-    pub fn length(v: Vec3) f32 {
-        return @sqrt(dot(v, v));
-    }
-
-    pub fn normalize(v: Vec3) Vec3 {
-        const len = length(v);
-        if (len < std.math.floatEps(f32)) return v;
-        return scale(v, 1.0 / len);
-    }
-
-    pub fn cross(a: Vec3, b: Vec3) Vec3 {
-        return Vec3{
-            .x = a.y * b.z - a.z * b.y,
-            .y = a.z * b.x - a.x * b.z,
-            .z = a.x * b.y - a.y * b.x,
-        };
-    }
+pub const GraphicsApi = enum { vulkan, opengl };
+pub const ShaderLang = enum { glsl, hlsl };
+pub const Config = struct {
+    graphics_api: GraphicsApi,
+    shader_lang: ShaderLang,
 };
 
-pub const Vec4 = struct {
-    x: f32,
-    y: f32,
-    z: f32,
-    w: f32,
-
-    pub fn init(x: f32, y: f32, z: f32, w: f32) Vec4 {
-        return Vec4{ .x = x, .y = y, .z = z, .w = w };
-    }
-};
-
-pub const Mat4 = struct {
-    m: [16]f32, // Column-major order for GLSL compatibility
-
-    pub fn identity() Mat4 {
-        return Mat4{
-            .m = [16]f32{
-                1.0, 0.0, 0.0, 0.0,
-                0.0, 1.0, 0.0, 0.0,
-                0.0, 0.0, 1.0, 0.0,
-                0.0, 0.0, 0.0, 1.0,
-            },
-        };
-    }
-
-    pub fn mul(a: Mat4, b: Mat4) Mat4 {
-        var result: Mat4 = undefined;
-        var i: usize = 0;
-        while (i < 4) : (i += 1) {
-            var j: usize = 0;
-            while (j < 4) : (j += 1) {
-                var sum: f32 = 0.0;
-                var k: usize = 0;
-                while (k < 4) : (k += 1) {
-                    sum += a.m[k * 4 + j] * b.m[i * 4 + k];
-                }
-                result.m[i * 4 + j] = sum;
-            }
+pub fn init(comptime config: Config) type {
+    return struct {
+        pub fn Vec3(comptime T: type) type {
+            return GenVec3(T);
         }
-        return result;
-    }
+        pub fn Vec4(comptime T: type) type {
+            return GenVec4(T);
+        }
+        pub fn Mat4(comptime T: type) type {
+            return GenMat4(T, config);
+        }
+    };
+}
 
-    pub fn perspective(fov: f32, aspect: f32, near: f32, far: f32) Mat4 {
-        const tan_half_fov = @tan(fov / 2.0);
-        var result = Mat4{ .m = [_]f32{0.0} ** 16 };
+fn GenVec3(comptime T: type) type {
+    return struct {
+        const Self = @This();
 
-        result.m[0] = 1.0 / (aspect * tan_half_fov);
-        result.m[5] = -1.0 / tan_half_fov; // Flip Y for Vulkan (clip space Y points down)
-        result.m[10] = far / (near - far); // Vulkan uses 0-1 depth range
-        result.m[11] = -1.0;
-        result.m[14] = -(far * near) / (far - near); // Vulkan 0-1 depth
+        x: T,
+        y: T,
+        z: T,
 
-        return result;
-    }
+        pub fn init(x: T, y: T, z: T) Self {
+            return Self{ .x = x, .y = y, .z = z };
+        }
 
-    pub fn lookAt(eye: Vec3, target: Vec3, up: Vec3) Mat4 {
-        const f = Vec3.normalize(Vec3.sub(target, eye));
-        const s = Vec3.normalize(Vec3.cross(f, up));
-        const u = Vec3.cross(s, f);
+        pub fn add(a: Self, b: Self) Self {
+            return Self{
+                .x = a.x + b.x,
+                .y = a.y + b.y,
+                .z = a.z + b.z,
+            };
+        }
 
-        var result = Mat4.identity();
+        pub fn sub(a: Self, b: Self) Self {
+            return Self{
+                .x = a.x - b.x,
+                .y = a.y - b.y,
+                .z = a.z - b.z,
+            };
+        }
 
-        result.m[0] = s.x;
-        result.m[4] = s.y;
-        result.m[8] = s.z;
+        pub fn scale(v: Self, s: T) Self {
+            return Self{
+                .x = v.x * s,
+                .y = v.y * s,
+                .z = v.z * s,
+            };
+        }
 
-        result.m[1] = u.x;
-        result.m[5] = u.y;
-        result.m[9] = u.z;
+        pub fn dot(a: Self, b: Self) T {
+            return a.x * b.x + a.y * b.y + a.z * b.z;
+        }
 
-        result.m[2] = -f.x;
-        result.m[6] = -f.y;
-        result.m[10] = -f.z;
+        pub fn length(v: Self) T {
+            return @sqrt(dot(v, v));
+        }
 
-        result.m[12] = -Vec3.dot(s, eye);
-        result.m[13] = -Vec3.dot(u, eye);
-        result.m[14] = Vec3.dot(f, eye);
+        pub fn normalize(v: Self) Self {
+            const len = length(v);
+            if (len < std.math.floatEps(T)) return v;
+            return scale(v, 1.0 / len);
+        }
 
-        return result;
-    }
-};
+        pub fn cross(a: Self, b: Self) Self {
+            return Self{
+                .x = a.y * b.z - a.z * b.y,
+                .y = a.z * b.x - a.x * b.z,
+                .z = a.x * b.y - a.y * b.x,
+            };
+        }
+    };
+}
+
+fn GenVec4(comptime T: type) type {
+    return struct {
+        const Self = @This();
+
+        x: T,
+        y: T,
+        z: T,
+        w: T,
+
+        pub fn init(x: T, y: T, z: T, w: T) Self {
+            return Self{ .x = x, .y = y, .z = z, .w = w };
+        }
+    };
+}
+
+fn GenMat4(comptime T: type, comptime config: Config) type {
+    return struct {
+        const Self = @This();
+        const Vec3T = GenVec3(T);
+
+        m: [16]T,
+
+        inline fn idx(col: usize, row: usize) usize {
+            return switch (config.shader_lang) {
+                .glsl => col * 4 + row,
+                .hlsl => row * 4 + col,
+            };
+        }
+
+        pub fn identity() Self {
+            var result = Self{ .m = [_]T{0} ** 16 };
+            result.m[idx(0, 0)] = 1;
+            result.m[idx(1, 1)] = 1;
+            result.m[idx(2, 2)] = 1;
+            result.m[idx(3, 3)] = 1;
+            return result;
+        }
+
+        pub fn mul(a: Self, b: Self) Self {
+            var result: Self = undefined;
+            var i: usize = 0;
+            while (i < 4) : (i += 1) {
+                var j: usize = 0;
+                while (j < 4) : (j += 1) {
+                    var sum: T = 0;
+                    var k: usize = 0;
+                    while (k < 4) : (k += 1) {
+                        sum += a.m[idx(k, j)] * b.m[idx(i, k)];
+                    }
+                    result.m[idx(i, j)] = sum;
+                }
+            }
+            return result;
+        }
+
+        pub fn perspective(fov: T, aspect: T, near: T, far: T) Self {
+            const tan_half_fov = @tan(fov / 2.0);
+            var result = Self{ .m = [_]T{0} ** 16 };
+
+            result.m[idx(0, 0)] = 1.0 / (aspect * tan_half_fov);
+
+            switch (config.graphics_api) {
+                .vulkan => {
+                    result.m[idx(1, 1)] = -1.0 / tan_half_fov;
+                    result.m[idx(2, 2)] = far / (near - far);
+                    result.m[idx(2, 3)] = -1.0;
+                    result.m[idx(3, 2)] = -(far * near) / (far - near);
+                },
+                .opengl => {
+                    result.m[idx(1, 1)] = 1.0 / tan_half_fov;
+                    result.m[idx(2, 2)] = -(far + near) / (far - near);
+                    result.m[idx(2, 3)] = -1.0;
+                    result.m[idx(3, 2)] = -(2.0 * far * near) / (far - near);
+                },
+            }
+
+            return result;
+        }
+
+        pub fn lookAt(eye: Vec3T, target: Vec3T, up: Vec3T) Self {
+            const f = Vec3T.normalize(Vec3T.sub(target, eye));
+            const s = Vec3T.normalize(Vec3T.cross(f, up));
+            const u = Vec3T.cross(s, f);
+
+            var result = Self.identity();
+
+            result.m[idx(0, 0)] = s.x;
+            result.m[idx(1, 0)] = s.y;
+            result.m[idx(2, 0)] = s.z;
+
+            result.m[idx(0, 1)] = u.x;
+            result.m[idx(1, 1)] = u.y;
+            result.m[idx(2, 1)] = u.z;
+
+            result.m[idx(0, 2)] = -f.x;
+            result.m[idx(1, 2)] = -f.y;
+            result.m[idx(2, 2)] = -f.z;
+
+            result.m[idx(3, 0)] = -Vec3T.dot(s, eye);
+            result.m[idx(3, 1)] = -Vec3T.dot(u, eye);
+            result.m[idx(3, 2)] = Vec3T.dot(f, eye);
+
+            return result;
+        }
+    };
+}
