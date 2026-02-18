@@ -20,6 +20,14 @@ pub fn main(init: std.process.Init) void {
     bench(io, "Vec3.normalize", benchVec3Normalize);
     bench(io, "Vec3.cross", benchVec3Cross);
 
+    // Vec4
+    bench(io, "Vec4.add", benchVec4Add);
+    bench(io, "Vec4.sub", benchVec4Sub);
+    bench(io, "Vec4.scale", benchVec4Scale);
+    bench(io, "Vec4.dot", benchVec4Dot);
+    bench(io, "Vec4.length", benchVec4Length);
+    bench(io, "Vec4.normalize", benchVec4Normalize);
+
     // Mat4
     bench(io, "Mat4.mul", benchMat4Mul);
     bench(io, "Mat4.perspective", benchMat4Perspective);
@@ -75,6 +83,35 @@ fn benchVec3Normalize() void {
 
 fn benchVec3Cross() void {
     std.mem.doNotOptimizeAway(zlm.Vec3(f32).cross(va, vb));
+}
+
+// ── Vec4 benchmarks ──
+
+var v4a = zlm.Vec4(f32).init(1.0, 2.0, 3.0, 4.0);
+var v4b = zlm.Vec4(f32).init(5.0, 6.0, 7.0, 8.0);
+
+fn benchVec4Add() void {
+    std.mem.doNotOptimizeAway(zlm.Vec4(f32).add(v4a, v4b));
+}
+
+fn benchVec4Sub() void {
+    std.mem.doNotOptimizeAway(zlm.Vec4(f32).sub(v4a, v4b));
+}
+
+fn benchVec4Scale() void {
+    std.mem.doNotOptimizeAway(zlm.Vec4(f32).scale(v4a, 2.5));
+}
+
+fn benchVec4Dot() void {
+    std.mem.doNotOptimizeAway(zlm.Vec4(f32).dot(v4a, v4b));
+}
+
+fn benchVec4Length() void {
+    std.mem.doNotOptimizeAway(zlm.Vec4(f32).length(v4a));
+}
+
+fn benchVec4Normalize() void {
+    std.mem.doNotOptimizeAway(zlm.Vec4(f32).normalize(v4a));
 }
 
 // ── Mat4 benchmarks ──

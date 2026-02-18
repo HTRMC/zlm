@@ -93,6 +93,47 @@ fn GenVec4(comptime T: type) type {
         pub fn init(x: T, y: T, z: T, w: T) Self {
             return Self{ .x = x, .y = y, .z = z, .w = w };
         }
+
+        pub fn add(a: Self, b: Self) Self {
+            return Self{
+                .x = a.x + b.x,
+                .y = a.y + b.y,
+                .z = a.z + b.z,
+                .w = a.w + b.w,
+            };
+        }
+
+        pub fn sub(a: Self, b: Self) Self {
+            return Self{
+                .x = a.x - b.x,
+                .y = a.y - b.y,
+                .z = a.z - b.z,
+                .w = a.w - b.w,
+            };
+        }
+
+        pub fn scale(v: Self, s: T) Self {
+            return Self{
+                .x = v.x * s,
+                .y = v.y * s,
+                .z = v.z * s,
+                .w = v.w * s,
+            };
+        }
+
+        pub fn dot(a: Self, b: Self) T {
+            return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+        }
+
+        pub fn length(v: Self) T {
+            return @sqrt(dot(v, v));
+        }
+
+        pub fn normalize(v: Self) Self {
+            const len = length(v);
+            if (len < std.math.floatEps(T)) return v;
+            return scale(v, 1.0 / len);
+        }
     };
 }
 
