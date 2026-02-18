@@ -59,18 +59,38 @@ Affects projection matrices only.
 
 ### `shader_lang`
 
-Affects Mat4 memory layout.
+Affects matrix memory layout.
 
 | | Layout |
 |---|---|
-| `.glsl` | column-major (`m[col * 4 + row]`) |
-| `.hlsl` | row-major (`m[row * 4 + col]`) |
+| `.glsl` | column-major (`m[col * rows + row]`) |
+| `.hlsl` | row-major (`m[row * cols + col]`) |
 
 ## Types
 
+### Vectors
+
+- **`Vec2(T)`** — 2-component vector: add, sub, scale, dot, length, normalize
 - **`Vec3(T)`** — 3-component vector: add, sub, scale, dot, length, normalize, cross
-- **`Vec4(T)`** — 4-component vector
-- **`Mat4(T)`** — 4x4 matrix: identity, mul, perspective, lookAt
+- **`Vec4(T)`** — 4-component vector: add, sub, scale, dot, length, normalize
+
+### Matrices
+
+All matrix types support: add, sub, scale, transpose, mul.
+
+| Type | Size | Extra ops |
+|---|---|---|
+| `Mat2(T)` | 2x2 | identity, trace, determinant, inverse |
+| `Mat3(T)` | 3x3 | identity, trace, determinant, inverse |
+| `Mat4(T)` | 4x4 | identity, trace, determinant, inverse, perspective, lookAt |
+| `Mat2x3(T)` | 2 cols, 3 rows | — |
+| `Mat2x4(T)` | 2 cols, 4 rows | — |
+| `Mat3x2(T)` | 3 cols, 2 rows | — |
+| `Mat3x4(T)` | 3 cols, 4 rows | — |
+| `Mat4x2(T)` | 4 cols, 2 rows | — |
+| `Mat4x3(T)` | 4 cols, 3 rows | — |
+
+`mul` supports cross-type multiplication — a `Mat3x4` times a `Mat4x2` returns a `Mat3x2` (dimensions checked at comptime).
 
 ## Building
 
@@ -79,3 +99,65 @@ Requires Zig 0.16.0.
 ```
 zig build bench    # run benchmarks
 ```
+
+## Benchmarks
+
+1 billion iterations per test, ReleaseFast, Vulkan/GLSL config.
+
+### Vec2
+
+| Operation | f16 | f32 | f64 | f128 |
+|---|---|---|---|---|
+| add | 0.57 ns | 0.57 ns | 0.57 ns | 13.86 ns |
+| sub | 0.61 ns | 0.57 ns | 0.57 ns | 20.97 ns |
+| scale | 0.57 ns | 0.57 ns | 0.57 ns | 15.49 ns |
+| dot | 0.57 ns | 0.26 ns | 0.27 ns | 28.26 ns |
+| length | 0.57 ns | 0.27 ns | 0.26 ns | 65.86 ns |
+| normalize | 0.57 ns | 0.57 ns | 0.57 ns | 121.16 ns |
+
+### Vec3
+
+| Operation | f16 | f32 | f64 | f128 |
+|---|---|---|---|---|
+| add | 0.57 ns | 0.57 ns | 0.56 ns | 20.46 ns |
+| sub | 0.56 ns | 0.57 ns | 0.56 ns | 31.98 ns |
+| scale | 0.57 ns | 0.56 ns | 0.57 ns | 23.01 ns |
+| dot | 0.56 ns | 0.25 ns | 0.26 ns | 49.75 ns |
+| length | 0.57 ns | 0.26 ns | 0.26 ns | 86.60 ns |
+| normalize | 0.57 ns | 0.57 ns | 0.56 ns | 148.16 ns |
+| cross | 0.57 ns | 0.56 ns | 0.57 ns | 88.57 ns |
+
+### Vec4
+
+| Operation | f16 | f32 | f64 | f128 |
+|---|---|---|---|---|
+| add | 0.57 ns | 0.56 ns | 0.63 ns | 27.11 ns |
+| sub | 0.57 ns | 0.57 ns | 0.63 ns | 41.04 ns |
+| scale | 0.56 ns | 0.56 ns | 0.64 ns | 30.30 ns |
+| dot | 0.57 ns | 0.26 ns | 0.26 ns | 68.53 ns |
+| length | 0.57 ns | 0.27 ns | 0.26 ns | 106.64 ns |
+| normalize | 0.57 ns | 0.57 ns | 0.63 ns | 175.96 ns |
+
+### Mat2
+
+| Operation | f16 | f32 | f64 | f128 |
+|---|---|---|---|---|
+| mul | 0.57 ns | 0.56 ns | 0.63 ns | 88.92 ns |
+| determinant | 0.56 ns | 0.26 ns | 0.25 ns | 18.34 ns |
+| inverse | 0.57 ns | 0.57 ns | 0.63 ns | 74.11 ns |
+
+### Mat3
+
+| Operation | f16 | f32 | f64 | f128 |
+|---|---|---|---|---|
+| mul | 0.63 ns | 0.63 ns | 1.14 ns | 301.40 ns |
+| determinant | 0.57 ns | 0.27 ns | 0.27 ns | 83.71 ns |
+| inverse | 0.63 ns | 0.64 ns | 1.14 ns | 319.04 ns |
+
+### Mat4
+
+| Operation | f64 |
+|---|---|
+| mul | 1.51 ns |
+| perspective | 1.52 ns |
+| lookAt | 1.33 ns |

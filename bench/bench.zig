@@ -2,7 +2,7 @@ const std = @import("std");
 const zlm = @import("zlm").init(.{ .graphics_api = .vulkan, .shader_lang = .glsl });
 const print = std.debug.print;
 
-const iterations = 10_000_000;
+const iterations = 1_000_000_000;
 
 const float_types = .{ f16, f32, f64, f128 };
 const int_types = .{ i8, i16, i32, i64, u8, u16, u32, u64 };
