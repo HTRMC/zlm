@@ -129,6 +129,28 @@ pub fn main(init: std.process.Init) void {
 
     separator();
 
+    // Mat2
+    inline for (float_types) |T| {
+        const B = MatBench(T, 2);
+        const name = "Mat2(" ++ @typeName(T) ++ ")";
+        bench(io, name ++ ".mul", B.mul);
+        bench(io, name ++ ".determinant", B.determinant);
+        bench(io, name ++ ".inverse", B.inverse);
+    }
+
+    separator();
+
+    // Mat3
+    inline for (float_types) |T| {
+        const B = MatBench(T, 3);
+        const name = "Mat3(" ++ @typeName(T) ++ ")";
+        bench(io, name ++ ".mul", B.mul);
+        bench(io, name ++ ".determinant", B.determinant);
+        bench(io, name ++ ".inverse", B.inverse);
+    }
+
+    separator();
+
     // Mat4
     bench(io, "Mat4(f64).mul", benchMat4Mul);
     bench(io, "Mat4(f64).perspective", benchMat4Perspective);
@@ -145,6 +167,29 @@ pub fn main(init: std.process.Init) void {
         }
     }
     print("\n", .{});
+}
+
+// ── Mat2/Mat3 benchmarks ──
+
+fn MatBench(comptime T: type, comptime N: usize) type {
+    const M = switch (N) {
+        2 => zlm.Mat2(T),
+        3 => zlm.Mat3(T),
+        4 => zlm.Mat4(T),
+        else => unreachable,
+    };
+    return struct {
+        var a = M.identity();
+        var b = blk: {
+            var m = M.identity();
+            m.m[M.idx(0, 1)] = 2;
+            m.m[M.idx(1, 0)] = 3;
+            break :blk m;
+        };
+        fn mul() void { std.mem.doNotOptimizeAway(M.mul(a, b)); }
+        fn determinant() void { std.mem.doNotOptimizeAway(M.determinant(a)); }
+        fn inverse() void { std.mem.doNotOptimizeAway(M.inverse(a)); }
+    };
 }
 
 // ── Mat4 benchmarks ──
