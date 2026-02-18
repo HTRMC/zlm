@@ -4,42 +4,102 @@ const print = std.debug.print;
 
 const iterations = 10_000_000;
 
+const float_types = .{ f16, f32, f64, f128 };
+const int_types = .{ i8, i16, i32, i64, u8, u16, u32, u64 };
+
+fn Vec2Bench(comptime T: type) type {
+    const V = zlm.Vec2(T);
+    return struct {
+        var a = V.init(1, 2);
+        var b = V.init(3, 4);
+        fn add() void { std.mem.doNotOptimizeAway(V.add(a, b)); }
+        fn sub() void { std.mem.doNotOptimizeAway(V.sub(a, b)); }
+        fn scale() void { std.mem.doNotOptimizeAway(V.scale(a, 2)); }
+        fn dot() void { std.mem.doNotOptimizeAway(V.dot(a, b)); }
+        fn length() void { std.mem.doNotOptimizeAway(V.length(a)); }
+        fn normalize() void { std.mem.doNotOptimizeAway(V.normalize(a)); }
+    };
+}
+
+fn Vec3Bench(comptime T: type) type {
+    const V = zlm.Vec3(T);
+    return struct {
+        var a = V.init(1, 2, 3);
+        var b = V.init(4, 5, 6);
+        fn add() void { std.mem.doNotOptimizeAway(V.add(a, b)); }
+        fn sub() void { std.mem.doNotOptimizeAway(V.sub(a, b)); }
+        fn scale() void { std.mem.doNotOptimizeAway(V.scale(a, 2)); }
+        fn dot() void { std.mem.doNotOptimizeAway(V.dot(a, b)); }
+        fn length() void { std.mem.doNotOptimizeAway(V.length(a)); }
+        fn normalize() void { std.mem.doNotOptimizeAway(V.normalize(a)); }
+        fn cross() void { std.mem.doNotOptimizeAway(V.cross(a, b)); }
+    };
+}
+
+fn Vec4Bench(comptime T: type) type {
+    const V = zlm.Vec4(T);
+    return struct {
+        var a = V.init(1, 2, 3, 4);
+        var b = V.init(5, 6, 7, 8);
+        fn add() void { std.mem.doNotOptimizeAway(V.add(a, b)); }
+        fn sub() void { std.mem.doNotOptimizeAway(V.sub(a, b)); }
+        fn scale() void { std.mem.doNotOptimizeAway(V.scale(a, 2)); }
+        fn dot() void { std.mem.doNotOptimizeAway(V.dot(a, b)); }
+        fn length() void { std.mem.doNotOptimizeAway(V.length(a)); }
+        fn normalize() void { std.mem.doNotOptimizeAway(V.normalize(a)); }
+    };
+}
+
+fn runVecBench(comptime name: []const u8, comptime B: type, comptime is_float: bool, comptime has_cross: bool, io: std.Io) void {
+    bench(io, name ++ ".add", B.add);
+    bench(io, name ++ ".sub", B.sub);
+    bench(io, name ++ ".scale", B.scale);
+    bench(io, name ++ ".dot", B.dot);
+    if (is_float) {
+        bench(io, name ++ ".length", B.length);
+        bench(io, name ++ ".normalize", B.normalize);
+    }
+    if (has_cross) {
+        bench(io, name ++ ".cross", B.cross);
+    }
+}
+
 pub fn main(init: std.process.Init) void {
     const io = init.io;
 
     print("\n", .{});
     print("  zlm benchmark — {d} iterations per test\n", .{iterations});
-    print("  ──────────────────────────────────────────\n", .{});
+    print("  ──────────────────────────────────────────────────\n", .{});
 
     // Vec2
-    bench(io, "Vec2.add", benchVec2Add);
-    bench(io, "Vec2.sub", benchVec2Sub);
-    bench(io, "Vec2.scale", benchVec2Scale);
-    bench(io, "Vec2.dot", benchVec2Dot);
-    bench(io, "Vec2.length", benchVec2Length);
-    bench(io, "Vec2.normalize", benchVec2Normalize);
+    inline for (float_types) |T| {
+        runVecBench("Vec2(" ++ @typeName(T) ++ ")", Vec2Bench(T), true, false, io);
+    }
+    inline for (int_types) |T| {
+        runVecBench("Vec2(" ++ @typeName(T) ++ ")", Vec2Bench(T), false, false, io);
+    }
 
     // Vec3
-    bench(io, "Vec3.add", benchVec3Add);
-    bench(io, "Vec3.sub", benchVec3Sub);
-    bench(io, "Vec3.scale", benchVec3Scale);
-    bench(io, "Vec3.dot", benchVec3Dot);
-    bench(io, "Vec3.length", benchVec3Length);
-    bench(io, "Vec3.normalize", benchVec3Normalize);
-    bench(io, "Vec3.cross", benchVec3Cross);
+    inline for (float_types) |T| {
+        runVecBench("Vec3(" ++ @typeName(T) ++ ")", Vec3Bench(T), true, true, io);
+    }
+    inline for (int_types) |T| {
+        runVecBench("Vec3(" ++ @typeName(T) ++ ")", Vec3Bench(T), false, true, io);
+    }
 
     // Vec4
-    bench(io, "Vec4.add", benchVec4Add);
-    bench(io, "Vec4.sub", benchVec4Sub);
-    bench(io, "Vec4.scale", benchVec4Scale);
-    bench(io, "Vec4.dot", benchVec4Dot);
-    bench(io, "Vec4.length", benchVec4Length);
-    bench(io, "Vec4.normalize", benchVec4Normalize);
+    inline for (float_types) |T| {
+        runVecBench("Vec4(" ++ @typeName(T) ++ ")", Vec4Bench(T), true, false, io);
+    }
+    inline for (int_types) |T| {
+        runVecBench("Vec4(" ++ @typeName(T) ++ ")", Vec4Bench(T), false, false, io);
+    }
 
     // Mat4
-    bench(io, "Mat4.mul", benchMat4Mul);
-    bench(io, "Mat4.perspective", benchMat4Perspective);
-    bench(io, "Mat4.lookAt", benchMat4LookAt);
+    print("  ──────────────────────────────────────────────────\n", .{});
+    bench(io, "Mat4(f64).mul", benchMat4Mul);
+    bench(io, "Mat4(f64).perspective", benchMat4Perspective);
+    bench(io, "Mat4(f64).lookAt", benchMat4LookAt);
 
     print("\n", .{});
 }
@@ -57,98 +117,7 @@ fn bench(io: std.Io, name: []const u8, comptime func: fn () void) void {
     const ns_per_op = ns_f / @as(f64, @floatFromInt(iterations));
     const ops_per_sec = @as(f64, @floatFromInt(iterations)) / (ns_f / 1_000_000_000.0);
 
-    print("  {s:>20}: {d:8.2} ns/op  ({d:12.0} ops/s)\n", .{ name, ns_per_op, ops_per_sec });
-}
-
-// ── Vec2 benchmarks ──
-
-var v2a = zlm.Vec2(f32).init(1.0, 2.0);
-var v2b = zlm.Vec2(f32).init(3.0, 4.0);
-
-fn benchVec2Add() void {
-    std.mem.doNotOptimizeAway(zlm.Vec2(f32).add(v2a, v2b));
-}
-
-fn benchVec2Sub() void {
-    std.mem.doNotOptimizeAway(zlm.Vec2(f32).sub(v2a, v2b));
-}
-
-fn benchVec2Scale() void {
-    std.mem.doNotOptimizeAway(zlm.Vec2(f32).scale(v2a, 2.5));
-}
-
-fn benchVec2Dot() void {
-    std.mem.doNotOptimizeAway(zlm.Vec2(f32).dot(v2a, v2b));
-}
-
-fn benchVec2Length() void {
-    std.mem.doNotOptimizeAway(zlm.Vec2(f32).length(v2a));
-}
-
-fn benchVec2Normalize() void {
-    std.mem.doNotOptimizeAway(zlm.Vec2(f32).normalize(v2a));
-}
-
-// ── Vec3 benchmarks ──
-
-var va = zlm.Vec3(f32).init(1.0, 2.0, 3.0);
-var vb = zlm.Vec3(f32).init(4.0, 5.0, 6.0);
-
-fn benchVec3Add() void {
-    std.mem.doNotOptimizeAway(zlm.Vec3(f32).add(va, vb));
-}
-
-fn benchVec3Sub() void {
-    std.mem.doNotOptimizeAway(zlm.Vec3(f32).sub(va, vb));
-}
-
-fn benchVec3Scale() void {
-    std.mem.doNotOptimizeAway(zlm.Vec3(f32).scale(va, 2.5));
-}
-
-fn benchVec3Dot() void {
-    std.mem.doNotOptimizeAway(zlm.Vec3(f32).dot(va, vb));
-}
-
-fn benchVec3Length() void {
-    std.mem.doNotOptimizeAway(zlm.Vec3(f32).length(va));
-}
-
-fn benchVec3Normalize() void {
-    std.mem.doNotOptimizeAway(zlm.Vec3(f32).normalize(va));
-}
-
-fn benchVec3Cross() void {
-    std.mem.doNotOptimizeAway(zlm.Vec3(f32).cross(va, vb));
-}
-
-// ── Vec4 benchmarks ──
-
-var v4a = zlm.Vec4(f32).init(1.0, 2.0, 3.0, 4.0);
-var v4b = zlm.Vec4(f32).init(5.0, 6.0, 7.0, 8.0);
-
-fn benchVec4Add() void {
-    std.mem.doNotOptimizeAway(zlm.Vec4(f32).add(v4a, v4b));
-}
-
-fn benchVec4Sub() void {
-    std.mem.doNotOptimizeAway(zlm.Vec4(f32).sub(v4a, v4b));
-}
-
-fn benchVec4Scale() void {
-    std.mem.doNotOptimizeAway(zlm.Vec4(f32).scale(v4a, 2.5));
-}
-
-fn benchVec4Dot() void {
-    std.mem.doNotOptimizeAway(zlm.Vec4(f32).dot(v4a, v4b));
-}
-
-fn benchVec4Length() void {
-    std.mem.doNotOptimizeAway(zlm.Vec4(f32).length(v4a));
-}
-
-fn benchVec4Normalize() void {
-    std.mem.doNotOptimizeAway(zlm.Vec4(f32).normalize(v4a));
+    print("  {s:>28}: {d:8.2} ns/op  ({d:12.0} ops/s)\n", .{ name, ns_per_op, ops_per_sec });
 }
 
 // ── Mat4 benchmarks ──
