@@ -11,6 +11,14 @@ pub fn main(init: std.process.Init) void {
     print("  zlm benchmark — {d} iterations per test\n", .{iterations});
     print("  ──────────────────────────────────────────\n", .{});
 
+    // Vec2
+    bench(io, "Vec2.add", benchVec2Add);
+    bench(io, "Vec2.sub", benchVec2Sub);
+    bench(io, "Vec2.scale", benchVec2Scale);
+    bench(io, "Vec2.dot", benchVec2Dot);
+    bench(io, "Vec2.length", benchVec2Length);
+    bench(io, "Vec2.normalize", benchVec2Normalize);
+
     // Vec3
     bench(io, "Vec3.add", benchVec3Add);
     bench(io, "Vec3.sub", benchVec3Sub);
@@ -50,6 +58,35 @@ fn bench(io: std.Io, name: []const u8, comptime func: fn () void) void {
     const ops_per_sec = @as(f64, @floatFromInt(iterations)) / (ns_f / 1_000_000_000.0);
 
     print("  {s:>20}: {d:8.2} ns/op  ({d:12.0} ops/s)\n", .{ name, ns_per_op, ops_per_sec });
+}
+
+// ── Vec2 benchmarks ──
+
+var v2a = zlm.Vec2(f32).init(1.0, 2.0);
+var v2b = zlm.Vec2(f32).init(3.0, 4.0);
+
+fn benchVec2Add() void {
+    std.mem.doNotOptimizeAway(zlm.Vec2(f32).add(v2a, v2b));
+}
+
+fn benchVec2Sub() void {
+    std.mem.doNotOptimizeAway(zlm.Vec2(f32).sub(v2a, v2b));
+}
+
+fn benchVec2Scale() void {
+    std.mem.doNotOptimizeAway(zlm.Vec2(f32).scale(v2a, 2.5));
+}
+
+fn benchVec2Dot() void {
+    std.mem.doNotOptimizeAway(zlm.Vec2(f32).dot(v2a, v2b));
+}
+
+fn benchVec2Length() void {
+    std.mem.doNotOptimizeAway(zlm.Vec2(f32).length(v2a));
+}
+
+fn benchVec2Normalize() void {
+    std.mem.doNotOptimizeAway(zlm.Vec2(f32).normalize(v2a));
 }
 
 // ── Vec3 benchmarks ──

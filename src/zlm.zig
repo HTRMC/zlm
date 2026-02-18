@@ -9,6 +9,9 @@ pub const Config = struct {
 
 pub fn init(comptime config: Config) type {
     return struct {
+        pub fn Vec2(comptime T: type) type {
+            return GenVec2(T);
+        }
         pub fn Vec3(comptime T: type) type {
             return GenVec3(T);
         }
@@ -17,6 +20,54 @@ pub fn init(comptime config: Config) type {
         }
         pub fn Mat4(comptime T: type) type {
             return GenMat4(T, config);
+        }
+    };
+}
+
+fn GenVec2(comptime T: type) type {
+    return struct {
+        const Self = @This();
+
+        x: T,
+        y: T,
+
+        pub fn init(x: T, y: T) Self {
+            return Self{ .x = x, .y = y };
+        }
+
+        pub fn add(a: Self, b: Self) Self {
+            return Self{
+                .x = a.x + b.x,
+                .y = a.y + b.y,
+            };
+        }
+
+        pub fn sub(a: Self, b: Self) Self {
+            return Self{
+                .x = a.x - b.x,
+                .y = a.y - b.y,
+            };
+        }
+
+        pub fn scale(v: Self, s: T) Self {
+            return Self{
+                .x = v.x * s,
+                .y = v.y * s,
+            };
+        }
+
+        pub fn dot(a: Self, b: Self) T {
+            return a.x * b.x + a.y * b.y;
+        }
+
+        pub fn length(v: Self) T {
+            return @sqrt(dot(v, v));
+        }
+
+        pub fn normalize(v: Self) Self {
+            const len = length(v);
+            if (len < std.math.floatEps(T)) return v;
+            return scale(v, 1.0 / len);
         }
     };
 }
