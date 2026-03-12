@@ -291,7 +291,7 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
         }
 
         // ── Square only (C == R) ──
-
+        // TODO make const
         pub fn identity() Self {
             comptime {
                 if (C != R) @compileError("identity() requires a square matrix");
@@ -427,6 +427,7 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
             const det = s0 * c5 - s1 * c4 + s2 * c3 + s3 * c2 - s4 * c1 + s5 * c0;
             const inv_det = 1.0 / det;
 
+// TODO this is really gross, can it be simplified? could be const
             var result: Self = undefined;
             result.m[idx(0, 0)] = (a.m[idx(1, 1)] * c5 - a.m[idx(1, 2)] * c4 + a.m[idx(1, 3)] * c3) * inv_det;
             result.m[idx(0, 1)] = (-a.m[idx(0, 1)] * c5 + a.m[idx(0, 2)] * c4 - a.m[idx(0, 3)] * c3) * inv_det;
@@ -480,6 +481,71 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
             return result;
         }
 
+        pub fn translate(m: Self, v: GenVec3(T)) Self {
+            comptime {
+                if (C != 4 or R != 4) @compileError("translate() requires a 4x4 matrix");
+            }
+            var result = m;
+            // result[3] = m[0]*v.x + m[1]*v.y + m[2]*v.z + m[3]
+            for (0..R) |row| {
+                result.m[idx(3, row)] =
+                    m.m[idx(0, row)] * v.x +
+                    m.m[idx(1, row)] * v.y +
+                    m.m[idx(2, row)] * v.z +
+                    m.m[idx(3, row)];
+            }
+            return result;
+        }
+
+        pub fn rotate(m: Self, angle: T, axis: GenVec3(T)) Self {
+            comptime {
+                if (C != 4 or R != 4) @compileError("rotate() requires a 4x4 matrix");
+            }
+            const Vec3T = GenVec3(T);
+            const a = Vec3T.normalize(axis);
+            const c = @cos(angle);
+            const s = @sin(angle);
+            const t: T = 1.0 - c;
+
+            // Rotation matrix components
+            const r00 = c + a.x * a.x * t;
+            const r01 = a.x * a.y * t + a.z * s;
+            const r02 = a.x * a.z * t - a.y * s;
+
+            const r10 = a.y * a.x * t - a.z * s;
+            const r11 = c + a.y * a.y * t;
+            const r12 = a.y * a.z * t + a.x * s;
+
+            const r20 = a.z * a.x * t + a.y * s;
+            const r21 = a.z * a.y * t - a.x * s;
+            const r22 = c + a.z * a.z * t;
+
+            // result = m * R (only first 3 columns change, column 3 stays)
+            var result = m;
+            for (0..R) |row| {
+                const m0 = m.m[idx(0, row)];
+                const m1 = m.m[idx(1, row)];
+                const m2 = m.m[idx(2, row)];
+                result.m[idx(0, row)] = m0 * r00 + m1 * r01 + m2 * r02;
+                result.m[idx(1, row)] = m0 * r10 + m1 * r11 + m2 * r12;
+                result.m[idx(2, row)] = m0 * r20 + m1 * r21 + m2 * r22;
+            }
+            return result;
+        }
+
+        pub fn reScale(m: Self, v: GenVec3(T)) Self {
+            comptime {
+                if (C != 4 or R != 4) @compileError("reScale() requires a 4x4 matrix");
+            }
+            var result = m;
+            for (0..R) |row| {
+                result.m[idx(0, row)] = m.m[idx(0, row)] * v.x;
+                result.m[idx(1, row)] = m.m[idx(1, row)] * v.y;
+                result.m[idx(2, row)] = m.m[idx(2, row)] * v.z;
+            }
+            return result;
+        }
+
         pub fn lookAt(eye: GenVec3(T), target: GenVec3(T), up: GenVec3(T)) Self {
             comptime {
                 if (C != 4 or R != 4) @compileError("lookAt() requires a 4x4 matrix");
@@ -510,4 +576,134 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
             return result;
         }
     };
+}
+
+// ── Tests ──
+
+const testing = std.testing;
+const eps = std.math.floatEps(f32);
+
+fn expectApprox(expected: f32, actual: f32) !void {
+    try testing.expectApproxEqAbs(expected, actual, 1e-5);
+}
+
+fn expectMat4(expected: [16]f32, actual: [16]f32) !void {
+    for (0..16) |i| {
+        try testing.expectApproxEqAbs(expected[i], actual[i], 1e-5);
+    }
+}
+
+const zlm = init(.{ .graphics_api = .vulkan, .shader_lang = .glsl });
+const Mat4 = zlm.Mat4(f32);
+const Vec3 = zlm.Vec3(f32);
+
+test "translate identity" {
+    const m = Mat4.translate(Mat4.identity(), Vec3.init(2.0, 3.0, 4.0));
+
+    // Column-major: translation goes in column 3
+    try expectApprox(1.0, m.m[Mat4.idx(0, 0)]);
+    try expectApprox(0.0, m.m[Mat4.idx(1, 0)]);
+    try expectApprox(0.0, m.m[Mat4.idx(2, 0)]);
+    try expectApprox(2.0, m.m[Mat4.idx(3, 0)]);
+
+    try expectApprox(0.0, m.m[Mat4.idx(0, 1)]);
+    try expectApprox(1.0, m.m[Mat4.idx(1, 1)]);
+    try expectApprox(0.0, m.m[Mat4.idx(2, 1)]);
+    try expectApprox(3.0, m.m[Mat4.idx(3, 1)]);
+
+    try expectApprox(0.0, m.m[Mat4.idx(0, 2)]);
+    try expectApprox(0.0, m.m[Mat4.idx(1, 2)]);
+    try expectApprox(1.0, m.m[Mat4.idx(2, 2)]);
+    try expectApprox(4.0, m.m[Mat4.idx(3, 2)]);
+
+    try expectApprox(0.0, m.m[Mat4.idx(0, 3)]);
+    try expectApprox(0.0, m.m[Mat4.idx(1, 3)]);
+    try expectApprox(0.0, m.m[Mat4.idx(2, 3)]);
+    try expectApprox(1.0, m.m[Mat4.idx(3, 3)]);
+}
+
+test "translate composes" {
+    var m = Mat4.identity();
+    m = Mat4.translate(m, Vec3.init(1.0, 0.0, 0.0));
+    m = Mat4.translate(m, Vec3.init(0.0, 2.0, 0.0));
+
+    try expectApprox(1.0, m.m[Mat4.idx(3, 0)]);
+    try expectApprox(2.0, m.m[Mat4.idx(3, 1)]);
+    try expectApprox(0.0, m.m[Mat4.idx(3, 2)]);
+}
+
+test "rotate 90 degrees around Z axis" {
+    const angle = std.math.pi / 2.0;
+    const m = Mat4.rotate(Mat4.identity(), angle, Vec3.init(0.0, 0.0, 1.0));
+
+    // cos(90) = 0, sin(90) = 1
+    // col0 = (0, 1, 0, 0), col1 = (-1, 0, 0, 0), col2 = (0, 0, 1, 0), col3 = (0, 0, 0, 1)
+    try expectApprox(0.0, m.m[Mat4.idx(0, 0)]);
+    try expectApprox(1.0, m.m[Mat4.idx(0, 1)]);
+    try expectApprox(-1.0, m.m[Mat4.idx(1, 0)]);
+    try expectApprox(0.0, m.m[Mat4.idx(1, 1)]);
+    try expectApprox(1.0, m.m[Mat4.idx(2, 2)]);
+    try expectApprox(1.0, m.m[Mat4.idx(3, 3)]);
+}
+
+test "rotate 90 degrees around Y axis" {
+    const angle = std.math.pi / 2.0;
+    const m = Mat4.rotate(Mat4.identity(), angle, Vec3.init(0.0, 1.0, 0.0));
+
+    // col0 = (0, 0, -1, 0), col1 = (0, 1, 0, 0), col2 = (1, 0, 0, 0)
+    try expectApprox(0.0, m.m[Mat4.idx(0, 0)]);
+    try expectApprox(-1.0, m.m[Mat4.idx(0, 2)]);
+    try expectApprox(1.0, m.m[Mat4.idx(1, 1)]);
+    try expectApprox(1.0, m.m[Mat4.idx(2, 0)]);
+    try expectApprox(0.0, m.m[Mat4.idx(2, 2)]);
+}
+
+test "rotate 360 degrees returns identity" {
+    const m = Mat4.rotate(Mat4.identity(), 2.0 * std.math.pi, Vec3.init(1.0, 1.0, 1.0));
+    try expectMat4(Mat4.identity().m, m.m);
+}
+
+test "reScale identity" {
+    const m = Mat4.reScale(Mat4.identity(), Vec3.init(2.0, 3.0, 4.0));
+
+    try expectApprox(2.0, m.m[Mat4.idx(0, 0)]);
+    try expectApprox(3.0, m.m[Mat4.idx(1, 1)]);
+    try expectApprox(4.0, m.m[Mat4.idx(2, 2)]);
+    try expectApprox(1.0, m.m[Mat4.idx(3, 3)]);
+
+    // Off-diagonals should be zero
+    try expectApprox(0.0, m.m[Mat4.idx(1, 0)]);
+    try expectApprox(0.0, m.m[Mat4.idx(0, 1)]);
+    try expectApprox(0.0, m.m[Mat4.idx(2, 0)]);
+}
+
+test "reScale preserves translation" {
+    var m = Mat4.translate(Mat4.identity(), Vec3.init(5.0, 6.0, 7.0));
+    m = Mat4.reScale(m, Vec3.init(2.0, 2.0, 2.0));
+
+    // Translation column unchanged
+    try expectApprox(5.0, m.m[Mat4.idx(3, 0)]);
+    try expectApprox(6.0, m.m[Mat4.idx(3, 1)]);
+    try expectApprox(7.0, m.m[Mat4.idx(3, 2)]);
+
+    // Scale applied to basis
+    try expectApprox(2.0, m.m[Mat4.idx(0, 0)]);
+    try expectApprox(2.0, m.m[Mat4.idx(1, 1)]);
+    try expectApprox(2.0, m.m[Mat4.idx(2, 2)]);
+}
+
+test "translate then rotate then reScale" {
+    var m = Mat4.identity();
+    m = Mat4.translate(m, Vec3.init(1.0, 2.0, 3.0));
+    m = Mat4.rotate(m, std.math.pi / 2.0, Vec3.init(0.0, 0.0, 1.0));
+    m = Mat4.reScale(m, Vec3.init(2.0, 2.0, 2.0));
+
+    // Apply to point (1, 0, 0, 1): scale(2,2,2) -> (2,0,0), rotate Z 90 -> (0,2,0), translate -> (1,4,3)
+    const px = m.m[Mat4.idx(0, 0)] * 1.0 + m.m[Mat4.idx(1, 0)] * 0.0 + m.m[Mat4.idx(2, 0)] * 0.0 + m.m[Mat4.idx(3, 0)];
+    const py = m.m[Mat4.idx(0, 1)] * 1.0 + m.m[Mat4.idx(1, 1)] * 0.0 + m.m[Mat4.idx(2, 1)] * 0.0 + m.m[Mat4.idx(3, 1)];
+    const pz = m.m[Mat4.idx(0, 2)] * 1.0 + m.m[Mat4.idx(1, 2)] * 0.0 + m.m[Mat4.idx(2, 2)] * 0.0 + m.m[Mat4.idx(3, 2)];
+
+    try expectApprox(1.0, px);
+    try expectApprox(4.0, py);
+    try expectApprox(3.0, pz);
 }
