@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     _ = b.addModule("zlm", .{
-        .root_source_file = b.path("src/zlm.zig"),
+        .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -13,7 +13,7 @@ pub fn build(b: *std.Build) void {
     // Tests
     const test_mod = b.addTest(.{
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/zlm.zig"),
+            .root_source_file = b.path("src/root.zig"),
             .target = target,
             .optimize = optimize,
         }),
@@ -29,7 +29,7 @@ pub fn build(b: *std.Build) void {
         .optimize = .ReleaseFast,
         .imports = &.{
             .{ .name = "zlm", .module = b.createModule(.{
-                .root_source_file = b.path("src/zlm.zig"),
+                .root_source_file = b.path("src/root.zig"),
                 .target = target,
                 .optimize = .ReleaseFast,
             }) },
