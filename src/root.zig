@@ -45,6 +45,9 @@ pub fn init(comptime config: Config) type {
         pub fn Mat4x3(comptime T: type) type {
             return GenMat(T, 4, 3, config);
         }
+        pub fn Rotor3(comptime T: type) type {
+            return GenRotor3(T, config);
+        }
     };
 }
 
@@ -562,6 +565,42 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
                  s.z,  u.z, -f.z, z,
                 -Vec3T.dot(s, eye), -Vec3T.dot(u, eye), Vec3T.dot(f, eye), 1,
             } };
+        }
+    };
+}
+
+fn GenRotor3(comptime T: type, comptime config: Config) type {
+    return struct {
+        const Self = @This();
+        const Vec3T = GenVec3(T);
+        const Mat3T = GenMat(T, 3, 3, config);
+        const Mat4T = GenMat(T, 4, 4, config);
+
+        s: T,
+        e12: T,
+        e13: T,
+        e23: T,
+
+        // ── Constructors ──
+
+        pub fn init(s_val: T, e12_val: T, e13_val: T, e23_val: T) Self {
+            return .{ .s = s_val, .e12 = e12_val, .e13 = e13_val, .e23 = e23_val };
+        }
+
+        pub fn identity() Self {
+            return .{ .s = 1, .e12 = 0, .e13 = 0, .e23 = 0 };
+        }
+
+        pub fn fromAxisAngle(axis: Vec3T, angle: T) Self {
+            const a = Vec3T.normalize(axis);
+            const half = angle * 0.5;
+            const sh = @sin(half);
+            return .{
+                .s = @cos(half),
+                .e12 = a.z * sh,
+                .e13 = -a.y * sh,
+                .e23 = a.x * sh,
+            };
         }
     };
 }
