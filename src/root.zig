@@ -54,6 +54,45 @@ pub fn init(comptime config: Config) type {
     };
 }
 
+pub const BVec2 = struct {
+    x: bool,
+    y: bool,
+
+    pub fn any(v: BVec2) bool {
+        return v.x or v.y;
+    }
+    pub fn all(v: BVec2) bool {
+        return v.x and v.y;
+    }
+};
+
+pub const BVec3 = struct {
+    x: bool,
+    y: bool,
+    z: bool,
+
+    pub fn any(v: BVec3) bool {
+        return v.x or v.y or v.z;
+    }
+    pub fn all(v: BVec3) bool {
+        return v.x and v.y and v.z;
+    }
+};
+
+pub const BVec4 = struct {
+    x: bool,
+    y: bool,
+    z: bool,
+    w: bool,
+
+    pub fn any(v: BVec4) bool {
+        return v.x or v.y or v.z or v.w;
+    }
+    pub fn all(v: BVec4) bool {
+        return v.x and v.y and v.z and v.w;
+    }
+};
+
 fn GenVec2(comptime T: type) type {
     return struct {
         const Self = @This();
@@ -170,6 +209,28 @@ fn GenVec2(comptime T: type) type {
 
         pub fn compMax(v: Self) T {
             return @max(v.x, v.y);
+        }
+
+        pub fn equal(a: Self, b: Self, epsilon: T) BVec2 {
+            return .{
+                .x = @abs(a.x - b.x) <= epsilon,
+                .y = @abs(a.y - b.y) <= epsilon,
+            };
+        }
+
+        pub fn notEqual(a: Self, b: Self, epsilon: T) BVec2 {
+            return .{
+                .x = @abs(a.x - b.x) > epsilon,
+                .y = @abs(a.y - b.y) > epsilon,
+            };
+        }
+
+        pub fn lessThan(a: Self, b: Self) BVec2 {
+            return .{ .x = a.x < b.x, .y = a.y < b.y };
+        }
+
+        pub fn greaterThan(a: Self, b: Self) BVec2 {
+            return .{ .x = a.x > b.x, .y = a.y > b.y };
         }
     };
 }
@@ -308,6 +369,30 @@ fn GenVec3(comptime T: type) type {
 
         pub fn compMax(v: Self) T {
             return @max(v.x, @max(v.y, v.z));
+        }
+
+        pub fn equal(a: Self, b: Self, epsilon: T) BVec3 {
+            return .{
+                .x = @abs(a.x - b.x) <= epsilon,
+                .y = @abs(a.y - b.y) <= epsilon,
+                .z = @abs(a.z - b.z) <= epsilon,
+            };
+        }
+
+        pub fn notEqual(a: Self, b: Self, epsilon: T) BVec3 {
+            return .{
+                .x = @abs(a.x - b.x) > epsilon,
+                .y = @abs(a.y - b.y) > epsilon,
+                .z = @abs(a.z - b.z) > epsilon,
+            };
+        }
+
+        pub fn lessThan(a: Self, b: Self) BVec3 {
+            return .{ .x = a.x < b.x, .y = a.y < b.y, .z = a.z < b.z };
+        }
+
+        pub fn greaterThan(a: Self, b: Self) BVec3 {
+            return .{ .x = a.x > b.x, .y = a.y > b.y, .z = a.z > b.z };
         }
     };
 }
@@ -450,6 +535,32 @@ fn GenVec4(comptime T: type) type {
 
         pub fn compMax(v: Self) T {
             return @max(v.x, @max(v.y, @max(v.z, v.w)));
+        }
+
+        pub fn equal(a: Self, b: Self, epsilon: T) BVec4 {
+            return .{
+                .x = @abs(a.x - b.x) <= epsilon,
+                .y = @abs(a.y - b.y) <= epsilon,
+                .z = @abs(a.z - b.z) <= epsilon,
+                .w = @abs(a.w - b.w) <= epsilon,
+            };
+        }
+
+        pub fn notEqual(a: Self, b: Self, epsilon: T) BVec4 {
+            return .{
+                .x = @abs(a.x - b.x) > epsilon,
+                .y = @abs(a.y - b.y) > epsilon,
+                .z = @abs(a.z - b.z) > epsilon,
+                .w = @abs(a.w - b.w) > epsilon,
+            };
+        }
+
+        pub fn lessThan(a: Self, b: Self) BVec4 {
+            return .{ .x = a.x < b.x, .y = a.y < b.y, .z = a.z < b.z, .w = a.w < b.w };
+        }
+
+        pub fn greaterThan(a: Self, b: Self) BVec4 {
+            return .{ .x = a.x > b.x, .y = a.y > b.y, .z = a.z > b.z, .w = a.w > b.w };
         }
     };
 }
@@ -2048,4 +2159,46 @@ test "vec4: compAdd compMul compMin compMax" {
     try expectApprox(24.0, Vec4.compMul(v));
     try expectApprox(1.0, Vec4.compMin(v));
     try expectApprox(4.0, Vec4.compMax(v));
+}
+
+// ── Vector Relational Tests ──
+
+test "vec3: equal and notEqual" {
+    const a = Vec3.init(1, 2, 3);
+    const b = Vec3.init(1, 2.5, 3);
+    const eq = Vec3.equal(a, b, 0.01);
+    try testing.expect(eq.x == true);
+    try testing.expect(eq.y == false);
+    try testing.expect(eq.z == true);
+
+    const neq = Vec3.notEqual(a, b, 0.01);
+    try testing.expect(neq.x == false);
+    try testing.expect(neq.y == true);
+    try testing.expect(neq.z == false);
+}
+
+test "vec3: lessThan and greaterThan" {
+    const a = Vec3.init(1, 5, 3);
+    const b = Vec3.init(2, 4, 3);
+    const lt = Vec3.lessThan(a, b);
+    try testing.expect(lt.x == true);
+    try testing.expect(lt.y == false);
+    try testing.expect(lt.z == false);
+
+    const gt = Vec3.greaterThan(a, b);
+    try testing.expect(gt.x == false);
+    try testing.expect(gt.y == true);
+    try testing.expect(gt.z == false);
+}
+
+test "bvec3: any and all" {
+    const t = BVec3{ .x = true, .y = false, .z = true };
+    try testing.expect(t.any() == true);
+    try testing.expect(t.all() == false);
+
+    const all_true = BVec3{ .x = true, .y = true, .z = true };
+    try testing.expect(all_true.all() == true);
+
+    const all_false = BVec3{ .x = false, .y = false, .z = false };
+    try testing.expect(all_false.any() == false);
 }
