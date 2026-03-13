@@ -48,6 +48,9 @@ pub fn init(comptime config: Config) type {
         pub fn Rotor3(comptime T: type) type {
             return GenRotor3(T, config);
         }
+        pub fn Quat(comptime T: type) type {
+            return GenQuat(T, config);
+        }
     };
 }
 
@@ -816,6 +819,258 @@ fn GenRotor3(comptime T: type, comptime config: Config) type {
                 .e13 = a.e13 * omt + b2.e13 * t,
                 .e23 = a.e23 * omt + b2.e23 * t,
             });
+        }
+    };
+}
+
+fn GenQuat(comptime T: type, comptime config: Config) type {
+    return struct {
+        const Self = @This();
+        const Vec3T = GenVec3(T);
+        const Mat3T = GenMat(T, 3, 3, config);
+        const Mat4T = GenMat(T, 4, 4, config);
+        const Rotor3T = GenRotor3(T, config);
+
+        w: T,
+        x: T,
+        y: T,
+        z: T,
+
+        // ── Constructors ──
+
+        pub fn init(w_val: T, x_val: T, y_val: T, z_val: T) Self {
+            return .{ .w = w_val, .x = x_val, .y = y_val, .z = z_val };
+        }
+
+        pub fn identity() Self {
+            return .{ .w = 1, .x = 0, .y = 0, .z = 0 };
+        }
+
+        pub fn fromAxisAngle(axis: Vec3T, angle: T) Self {
+            const a = Vec3T.normalize(axis);
+            const half = angle * 0.5;
+            const sh = @sin(half);
+            return .{
+                .w = @cos(half),
+                .x = a.x * sh,
+                .y = a.y * sh,
+                .z = a.z * sh,
+            };
+        }
+
+        // ── Algebra ──
+
+        pub fn mul(p: Self, q: Self) Self {
+            return .{
+                .w = p.w * q.w - p.x * q.x - p.y * q.y - p.z * q.z,
+                .x = p.w * q.x + p.x * q.w + p.y * q.z - p.z * q.y,
+                .y = p.w * q.y + p.y * q.w + p.z * q.x - p.x * q.z,
+                .z = p.w * q.z + p.z * q.w + p.x * q.y - p.y * q.x,
+            };
+        }
+
+        pub fn conjugate(q: Self) Self {
+            return .{ .w = q.w, .x = -q.x, .y = -q.y, .z = -q.z };
+        }
+
+        pub fn norm(q: Self) T {
+            return @sqrt(q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z);
+        }
+
+        pub fn normalize(q: Self) Self {
+            const n = norm(q);
+            if (n < std.math.floatEps(T)) return q;
+            const inv = 1.0 / n;
+            return .{ .w = q.w * inv, .x = q.x * inv, .y = q.y * inv, .z = q.z * inv };
+        }
+
+        pub fn dot(a: Self, b: Self) T {
+            return a.w * b.w + a.x * b.x + a.y * b.y + a.z * b.z;
+        }
+
+        pub fn inverse(q: Self) Self {
+            const n2 = q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z;
+            const inv = 1.0 / n2;
+            return .{ .w = q.w * inv, .x = -q.x * inv, .y = -q.y * inv, .z = -q.z * inv };
+        }
+
+        // ── Rotation ──
+
+        pub fn rotate(q: Self, v: Vec3T) Vec3T {
+            const tx = 2 * (q.y * v.z - q.z * v.y);
+            const ty = 2 * (q.z * v.x - q.x * v.z);
+            const tz = 2 * (q.x * v.y - q.y * v.x);
+
+            return Vec3T{
+                .x = v.x + q.w * tx + (q.y * tz - q.z * ty),
+                .y = v.y + q.w * ty + (q.z * tx - q.x * tz),
+                .z = v.z + q.w * tz + (q.x * ty - q.y * tx),
+            };
+        }
+
+        // ── Conversion ──
+
+        pub fn toMat3(q: Self) Mat3T {
+            const x2 = q.x + q.x;
+            const y2 = q.y + q.y;
+            const z2 = q.z + q.z;
+            const xx = q.x * x2;
+            const xy = q.x * y2;
+            const xz = q.x * z2;
+            const yy = q.y * y2;
+            const yz = q.y * z2;
+            const zz = q.z * z2;
+            const wx = q.w * x2;
+            const wy = q.w * y2;
+            const wz = q.w * z2;
+
+            var result: Mat3T = undefined;
+            result.m[Mat3T.idx(0, 0)] = 1 - (yy + zz);
+            result.m[Mat3T.idx(0, 1)] = xy + wz;
+            result.m[Mat3T.idx(0, 2)] = xz - wy;
+            result.m[Mat3T.idx(1, 0)] = xy - wz;
+            result.m[Mat3T.idx(1, 1)] = 1 - (xx + zz);
+            result.m[Mat3T.idx(1, 2)] = yz + wx;
+            result.m[Mat3T.idx(2, 0)] = xz + wy;
+            result.m[Mat3T.idx(2, 1)] = yz - wx;
+            result.m[Mat3T.idx(2, 2)] = 1 - (xx + yy);
+            return result;
+        }
+
+        pub fn toMat4(q: Self) Mat4T {
+            const m3 = toMat3(q);
+            var result: Mat4T = undefined;
+            for (0..3) |col| {
+                for (0..3) |row| {
+                    result.m[Mat4T.idx(col, row)] = m3.m[Mat3T.idx(col, row)];
+                }
+                result.m[Mat4T.idx(col, 3)] = 0;
+            }
+            result.m[Mat4T.idx(3, 0)] = 0;
+            result.m[Mat4T.idx(3, 1)] = 0;
+            result.m[Mat4T.idx(3, 2)] = 0;
+            result.m[Mat4T.idx(3, 3)] = 1;
+            return result;
+        }
+
+        pub fn fromMat3(m: Mat3T) Self {
+            const m00 = m.m[Mat3T.idx(0, 0)];
+            const m11 = m.m[Mat3T.idx(1, 1)];
+            const m22 = m.m[Mat3T.idx(2, 2)];
+            const tr = m00 + m11 + m22;
+
+            var w_val: T = undefined;
+            var x_val: T = undefined;
+            var y_val: T = undefined;
+            var z_val: T = undefined;
+
+            if (tr > 0) {
+                const s = @sqrt(tr + 1.0) * 2.0;
+                w_val = 0.25 * s;
+                x_val = (m.m[Mat3T.idx(1, 2)] - m.m[Mat3T.idx(2, 1)]) / s;
+                y_val = (m.m[Mat3T.idx(2, 0)] - m.m[Mat3T.idx(0, 2)]) / s;
+                z_val = (m.m[Mat3T.idx(0, 1)] - m.m[Mat3T.idx(1, 0)]) / s;
+            } else if (m00 > m11 and m00 > m22) {
+                const s = @sqrt(1.0 + m00 - m11 - m22) * 2.0;
+                w_val = (m.m[Mat3T.idx(1, 2)] - m.m[Mat3T.idx(2, 1)]) / s;
+                x_val = 0.25 * s;
+                y_val = (m.m[Mat3T.idx(0, 1)] + m.m[Mat3T.idx(1, 0)]) / s;
+                z_val = (m.m[Mat3T.idx(2, 0)] + m.m[Mat3T.idx(0, 2)]) / s;
+            } else if (m11 > m22) {
+                const s = @sqrt(1.0 + m11 - m00 - m22) * 2.0;
+                w_val = (m.m[Mat3T.idx(2, 0)] - m.m[Mat3T.idx(0, 2)]) / s;
+                x_val = (m.m[Mat3T.idx(0, 1)] + m.m[Mat3T.idx(1, 0)]) / s;
+                y_val = 0.25 * s;
+                z_val = (m.m[Mat3T.idx(1, 2)] + m.m[Mat3T.idx(2, 1)]) / s;
+            } else {
+                const s = @sqrt(1.0 + m22 - m00 - m11) * 2.0;
+                w_val = (m.m[Mat3T.idx(0, 1)] - m.m[Mat3T.idx(1, 0)]) / s;
+                x_val = (m.m[Mat3T.idx(2, 0)] + m.m[Mat3T.idx(0, 2)]) / s;
+                y_val = (m.m[Mat3T.idx(1, 2)] + m.m[Mat3T.idx(2, 1)]) / s;
+                z_val = 0.25 * s;
+            }
+
+            return .{ .w = w_val, .x = x_val, .y = y_val, .z = z_val };
+        }
+
+        pub fn fromMat4(m: Mat4T) Self {
+            var m3: Mat3T = undefined;
+            for (0..3) |col| {
+                for (0..3) |row| {
+                    m3.m[Mat3T.idx(col, row)] = m.m[Mat4T.idx(col, row)];
+                }
+            }
+            return fromMat3(m3);
+        }
+
+        pub fn toAxisAngle(q: Self) struct { axis: Vec3T, angle: T } {
+            const n = normalize(q);
+            const sin_half_sq = n.x * n.x + n.y * n.y + n.z * n.z;
+
+            if (sin_half_sq < std.math.floatEps(T)) {
+                return .{ .axis = Vec3T.init(1, 0, 0), .angle = 0 };
+            }
+
+            const sin_half = @sqrt(sin_half_sq);
+            const angle = 2.0 * std.math.atan2(sin_half, n.w);
+            const inv_sh = 1.0 / sin_half;
+
+            return .{
+                .axis = Vec3T.init(n.x * inv_sh, n.y * inv_sh, n.z * inv_sh),
+                .angle = angle,
+            };
+        }
+
+        // ── Interpolation ──
+
+        pub fn slerp(a: Self, b: Self, t: T) Self {
+            var d = dot(a, b);
+            var b2 = b;
+
+            if (d < 0) {
+                d = -d;
+                b2 = .{ .w = -b.w, .x = -b.x, .y = -b.y, .z = -b.z };
+            }
+
+            if (d > 1.0 - std.math.floatEps(T)) {
+                return nlerp(a, b2, t);
+            }
+
+            const theta = std.math.acos(d);
+            const sin_theta = @sin(theta);
+            const wa = @sin((1.0 - t) * theta) / sin_theta;
+            const wb = @sin(t * theta) / sin_theta;
+
+            return .{
+                .w = a.w * wa + b2.w * wb,
+                .x = a.x * wa + b2.x * wb,
+                .y = a.y * wa + b2.y * wb,
+                .z = a.z * wa + b2.z * wb,
+            };
+        }
+
+        pub fn nlerp(a: Self, b: Self, t: T) Self {
+            var b2 = b;
+            if (dot(a, b) < 0) {
+                b2 = .{ .w = -b.w, .x = -b.x, .y = -b.y, .z = -b.z };
+            }
+            const omt = 1.0 - t;
+            return normalize(.{
+                .w = a.w * omt + b2.w * t,
+                .x = a.x * omt + b2.x * t,
+                .y = a.y * omt + b2.y * t,
+                .z = a.z * omt + b2.z * t,
+            });
+        }
+
+        // ── Rotor conversion ──
+
+        pub fn toRotor3(q: Self) Rotor3T {
+            return Rotor3T{ .s = q.w, .e12 = q.z, .e13 = -q.y, .e23 = q.x };
+        }
+
+        pub fn fromRotor3(r: Rotor3T) Self {
+            return .{ .w = r.s, .x = r.e23, .y = -r.e13, .z = r.e12 };
         }
     };
 }
