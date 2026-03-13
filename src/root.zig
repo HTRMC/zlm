@@ -657,6 +657,124 @@ fn GenRotor3(comptime T: type, comptime config: Config) type {
                 .z = v.z + w * tz + (qx * ty - qy * tx),
             };
         }
+
+        // ── Conversion ──
+
+        pub fn toMat3(r: Self) Mat3T {
+            const w = r.s;
+            const x = r.e23;
+            const y = -r.e13;
+            const z = r.e12;
+
+            const x2 = x + x;
+            const y2 = y + y;
+            const z2 = z + z;
+            const xx = x * x2;
+            const xy = x * y2;
+            const xz = x * z2;
+            const yy = y * y2;
+            const yz = y * z2;
+            const zz = z * z2;
+            const wx = w * x2;
+            const wy = w * y2;
+            const wz = w * z2;
+
+            var result: Mat3T = undefined;
+            result.m[Mat3T.idx(0, 0)] = 1 - (yy + zz);
+            result.m[Mat3T.idx(0, 1)] = xy + wz;
+            result.m[Mat3T.idx(0, 2)] = xz - wy;
+            result.m[Mat3T.idx(1, 0)] = xy - wz;
+            result.m[Mat3T.idx(1, 1)] = 1 - (xx + zz);
+            result.m[Mat3T.idx(1, 2)] = yz + wx;
+            result.m[Mat3T.idx(2, 0)] = xz + wy;
+            result.m[Mat3T.idx(2, 1)] = yz - wx;
+            result.m[Mat3T.idx(2, 2)] = 1 - (xx + yy);
+            return result;
+        }
+
+        pub fn toMat4(r: Self) Mat4T {
+            const m3 = toMat3(r);
+            var result: Mat4T = undefined;
+            for (0..3) |col| {
+                for (0..3) |row| {
+                    result.m[Mat4T.idx(col, row)] = m3.m[Mat3T.idx(col, row)];
+                }
+                result.m[Mat4T.idx(col, 3)] = 0;
+            }
+            result.m[Mat4T.idx(3, 0)] = 0;
+            result.m[Mat4T.idx(3, 1)] = 0;
+            result.m[Mat4T.idx(3, 2)] = 0;
+            result.m[Mat4T.idx(3, 3)] = 1;
+            return result;
+        }
+
+        pub fn fromMat3(m: Mat3T) Self {
+            const m00 = m.m[Mat3T.idx(0, 0)];
+            const m11 = m.m[Mat3T.idx(1, 1)];
+            const m22 = m.m[Mat3T.idx(2, 2)];
+            const tr = m00 + m11 + m22;
+
+            var w: T = undefined;
+            var x: T = undefined;
+            var y: T = undefined;
+            var z: T = undefined;
+
+            if (tr > 0) {
+                const s_val = @sqrt(tr + 1.0) * 2.0;
+                w = 0.25 * s_val;
+                x = (m.m[Mat3T.idx(1, 2)] - m.m[Mat3T.idx(2, 1)]) / s_val;
+                y = (m.m[Mat3T.idx(2, 0)] - m.m[Mat3T.idx(0, 2)]) / s_val;
+                z = (m.m[Mat3T.idx(0, 1)] - m.m[Mat3T.idx(1, 0)]) / s_val;
+            } else if (m00 > m11 and m00 > m22) {
+                const s_val = @sqrt(1.0 + m00 - m11 - m22) * 2.0;
+                w = (m.m[Mat3T.idx(1, 2)] - m.m[Mat3T.idx(2, 1)]) / s_val;
+                x = 0.25 * s_val;
+                y = (m.m[Mat3T.idx(0, 1)] + m.m[Mat3T.idx(1, 0)]) / s_val;
+                z = (m.m[Mat3T.idx(2, 0)] + m.m[Mat3T.idx(0, 2)]) / s_val;
+            } else if (m11 > m22) {
+                const s_val = @sqrt(1.0 + m11 - m00 - m22) * 2.0;
+                w = (m.m[Mat3T.idx(2, 0)] - m.m[Mat3T.idx(0, 2)]) / s_val;
+                x = (m.m[Mat3T.idx(0, 1)] + m.m[Mat3T.idx(1, 0)]) / s_val;
+                y = 0.25 * s_val;
+                z = (m.m[Mat3T.idx(1, 2)] + m.m[Mat3T.idx(2, 1)]) / s_val;
+            } else {
+                const s_val = @sqrt(1.0 + m22 - m00 - m11) * 2.0;
+                w = (m.m[Mat3T.idx(0, 1)] - m.m[Mat3T.idx(1, 0)]) / s_val;
+                x = (m.m[Mat3T.idx(2, 0)] + m.m[Mat3T.idx(0, 2)]) / s_val;
+                y = (m.m[Mat3T.idx(1, 2)] + m.m[Mat3T.idx(2, 1)]) / s_val;
+                z = 0.25 * s_val;
+            }
+
+            return .{ .s = w, .e12 = z, .e13 = -y, .e23 = x };
+        }
+
+        pub fn fromMat4(m: Mat4T) Self {
+            var m3: Mat3T = undefined;
+            for (0..3) |col| {
+                for (0..3) |row| {
+                    m3.m[Mat3T.idx(col, row)] = m.m[Mat4T.idx(col, row)];
+                }
+            }
+            return fromMat3(m3);
+        }
+
+        pub fn toAxisAngle(r: Self) struct { axis: Vec3T, angle: T } {
+            const n = normalize(r);
+            const sin_half_sq = n.e12 * n.e12 + n.e13 * n.e13 + n.e23 * n.e23;
+
+            if (sin_half_sq < std.math.floatEps(T)) {
+                return .{ .axis = Vec3T.init(1, 0, 0), .angle = 0 };
+            }
+
+            const sin_half = @sqrt(sin_half_sq);
+            const angle = 2.0 * std.math.atan2(sin_half, n.s);
+            const inv_sh = 1.0 / sin_half;
+
+            return .{
+                .axis = Vec3T.init(n.e23 * inv_sh, -n.e13 * inv_sh, n.e12 * inv_sh),
+                .angle = angle,
+            };
+        }
     };
 }
 
