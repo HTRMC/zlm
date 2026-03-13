@@ -1113,6 +1113,15 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
             return aat.isIdentity(epsilon);
         }
 
+        pub fn lerp(a: Self, b: Self, t: T) Self {
+            var result: Self = undefined;
+            const omt = 1.0 - t;
+            for (0..C * R) |i| {
+                result.m[i] = a.m[i] * omt + b.m[i] * t;
+            }
+            return result;
+        }
+
         pub fn project(obj: GenVec3(T), model: Self, proj: Self, viewport: GenVec4(T)) GenVec3(T) {
             comptime if (C != 4 or R != 4) @compileError("project() requires a 4x4 matrix");
             const mvp = proj.mul(model);
@@ -2629,4 +2638,23 @@ test "mat4: isOrthogonal" {
     // Scaled matrix is not orthogonal
     const scaled = Mat4.reScale(Mat4.identity(), Vec3.init(2, 2, 2));
     try testing.expect(!scaled.isOrthogonal(1e-5));
+}
+
+// ── Matrix Interpolation Tests ──
+
+test "mat4: lerp endpoints" {
+    const a = Mat4.identity();
+    const b = Mat4.translate(Mat4.identity(), Vec3.init(10, 0, 0));
+
+    // t=0 -> a
+    try expectMat4(a.m, Mat4.lerp(a, b, 0.0).m);
+    // t=1 -> b
+    try expectMat4(b.m, Mat4.lerp(a, b, 1.0).m);
+}
+
+test "mat4: lerp midpoint" {
+    const a = Mat4.identity();
+    const b = Mat4.translate(Mat4.identity(), Vec3.init(10, 0, 0));
+    const mid = Mat4.lerp(a, b, 0.5);
+    try expectApprox(5.0, mid.m[Mat4.idx(3, 0)]);
 }
