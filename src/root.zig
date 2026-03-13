@@ -775,6 +775,48 @@ fn GenRotor3(comptime T: type, comptime config: Config) type {
                 .angle = angle,
             };
         }
+
+        // ── Interpolation ──
+
+        pub fn slerp(a: Self, b: Self, t: T) Self {
+            var d = dot(a, b);
+            var b2 = b;
+
+            if (d < 0) {
+                d = -d;
+                b2 = .{ .s = -b.s, .e12 = -b.e12, .e13 = -b.e13, .e23 = -b.e23 };
+            }
+
+            if (d > 1.0 - std.math.floatEps(T)) {
+                return nlerp(a, b2, t);
+            }
+
+            const theta = std.math.acos(d);
+            const sin_theta = @sin(theta);
+            const wa = @sin((1.0 - t) * theta) / sin_theta;
+            const wb = @sin(t * theta) / sin_theta;
+
+            return .{
+                .s = a.s * wa + b2.s * wb,
+                .e12 = a.e12 * wa + b2.e12 * wb,
+                .e13 = a.e13 * wa + b2.e13 * wb,
+                .e23 = a.e23 * wa + b2.e23 * wb,
+            };
+        }
+
+        pub fn nlerp(a: Self, b: Self, t: T) Self {
+            var b2 = b;
+            if (dot(a, b) < 0) {
+                b2 = .{ .s = -b.s, .e12 = -b.e12, .e13 = -b.e13, .e23 = -b.e23 };
+            }
+            const omt = 1.0 - t;
+            return normalize(.{
+                .s = a.s * omt + b2.s * t,
+                .e12 = a.e12 * omt + b2.e12 * t,
+                .e13 = a.e13 * omt + b2.e13 * t,
+                .e23 = a.e23 * omt + b2.e23 * t,
+            });
+        }
     };
 }
 
