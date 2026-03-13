@@ -459,21 +459,21 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
 
         pub fn perspective(fov: T, aspect: T, near: T, far: T) Self {
             comptime if (C != 4 or R != 4) @compileError("perspective() requires a 4x4 matrix");
-            const thf = @tan(fov / 2.0);
-            const fmn = far - near;
+            const inv_thf = 1.0 / @tan(fov / 2.0);
+            const inv_fmn = 1.0 / (far - near);
             const z: T = 0;
             return Self{ .m = switch (config.graphics_api) {
                 .vulkan => .{
-                    1.0 / (aspect * thf), z, z,                        z,
-                    z,                    -1.0 / thf, z,               z,
-                    z,                    z, far / (near - far),       -1.0,
-                    z,                    z, -(far * near) / fmn,       z,
+                    inv_thf / aspect, z, z,                         z,
+                    z,               -inv_thf, z,                   z,
+                    z,                z, -far * inv_fmn,           -1.0,
+                    z,                z, -(far * near) * inv_fmn,   z,
                 },
                 .opengl => .{
-                    1.0 / (aspect * thf), z, z,                        z,
-                    z,                    1.0 / thf, z,                z,
-                    z,                    z, -(far + near) / fmn,     -1.0,
-                    z,                    z, -(2.0 * far * near) / fmn, z,
+                    inv_thf / aspect, z, z,                             z,
+                    z,                inv_thf, z,                       z,
+                    z,                z, -(far + near) * inv_fmn,      -1.0,
+                    z,                z, -(2.0 * far * near) * inv_fmn, z,
                 },
             } };
         }
@@ -504,17 +504,23 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
             const s = @sin(angle);
             const t: T = 1.0 - c;
 
-            // Rotation matrix components
+            const xy_t = a.x * a.y * t;
+            const xz_t = a.x * a.z * t;
+            const yz_t = a.y * a.z * t;
+            const xs = a.x * s;
+            const ys = a.y * s;
+            const zs = a.z * s;
+
             const r00 = c + a.x * a.x * t;
-            const r01 = a.x * a.y * t + a.z * s;
-            const r02 = a.x * a.z * t - a.y * s;
+            const r01 = xy_t + zs;
+            const r02 = xz_t - ys;
 
-            const r10 = a.y * a.x * t - a.z * s;
+            const r10 = xy_t - zs;
             const r11 = c + a.y * a.y * t;
-            const r12 = a.y * a.z * t + a.x * s;
+            const r12 = yz_t + xs;
 
-            const r20 = a.z * a.x * t + a.y * s;
-            const r21 = a.z * a.y * t - a.x * s;
+            const r20 = xz_t + ys;
+            const r21 = yz_t - xs;
             const r22 = c + a.z * a.z * t;
 
             // result = m * R (only first 3 columns change, column 3 stays)
