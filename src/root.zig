@@ -1088,6 +1088,31 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
             return a.inverse().transpose();
         }
 
+        pub fn isIdentity(a: Self, epsilon: T) bool {
+            comptime if (C != R) @compileError("isIdentity() requires a square matrix");
+            for (0..C) |col| {
+                for (0..R) |row| {
+                    const expected: T = if (col == row) 1 else 0;
+                    if (@abs(a.m[idx(col, row)] - expected) > epsilon) return false;
+                }
+            }
+            return true;
+        }
+
+        pub fn isNull(a: Self, epsilon: T) bool {
+            for (0..C * R) |i| {
+                if (@abs(a.m[i]) > epsilon) return false;
+            }
+            return true;
+        }
+
+        pub fn isOrthogonal(a: Self, epsilon: T) bool {
+            comptime if (C != R) @compileError("isOrthogonal() requires a square matrix");
+            // A is orthogonal if A * A^T = I
+            const aat = a.mul(a.transpose());
+            return aat.isIdentity(epsilon);
+        }
+
         pub fn project(obj: GenVec3(T), model: Self, proj: Self, viewport: GenVec4(T)) GenVec3(T) {
             comptime if (C != 4 or R != 4) @compileError("project() requires a 4x4 matrix");
             const mvp = proj.mul(model);
@@ -2580,4 +2605,28 @@ test "mat4: decompose TRS roundtrip" {
     try expectApprox(2.0, d.scale_val.z);
     // Rotation matrix should be orthogonal (det = 1)
     try expectApprox(1.0, d.rotation.determinant());
+}
+
+// ── Matrix Query Tests ──
+
+test "mat4: isIdentity" {
+    try testing.expect(Mat4.identity().isIdentity(1e-6));
+    const m = Mat4.translate(Mat4.identity(), Vec3.init(1, 0, 0));
+    try testing.expect(!m.isIdentity(1e-6));
+}
+
+test "mat4: isNull" {
+    const zero = Mat4{ .m = [_]f32{0} ** 16 };
+    try testing.expect(zero.isNull(1e-6));
+    try testing.expect(!Mat4.identity().isNull(1e-6));
+}
+
+test "mat4: isOrthogonal" {
+    // Pure rotation is orthogonal
+    const rot = Mat4.rotate(Mat4.identity(), 0.5, Vec3.init(0, 1, 0));
+    try testing.expect(rot.isOrthogonal(1e-5));
+
+    // Scaled matrix is not orthogonal
+    const scaled = Mat4.reScale(Mat4.identity(), Vec3.init(2, 2, 2));
+    try testing.expect(!scaled.isOrthogonal(1e-5));
 }
