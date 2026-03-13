@@ -1030,6 +1030,57 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
             return result;
         }
 
+        pub fn decompose(a: Self) struct { translation: GenVec3(T), rotation: GenMat(T, 3, 3, config), scale_val: GenVec3(T) } {
+            comptime if (C != 4 or R != 4) @compileError("decompose() requires a 4x4 matrix");
+            const Vec3T = GenVec3(T);
+            const Mat3T = GenMat(T, 3, 3, config);
+
+            // Extract translation from column 3
+            const translation = Vec3T{
+                .x = a.m[idx(3, 0)],
+                .y = a.m[idx(3, 1)],
+                .z = a.m[idx(3, 2)],
+            };
+
+            // Extract column vectors of the upper-left 3x3
+            var col0 = Vec3T{ .x = a.m[idx(0, 0)], .y = a.m[idx(0, 1)], .z = a.m[idx(0, 2)] };
+            var col1 = Vec3T{ .x = a.m[idx(1, 0)], .y = a.m[idx(1, 1)], .z = a.m[idx(1, 2)] };
+            var col2 = Vec3T{ .x = a.m[idx(2, 0)], .y = a.m[idx(2, 1)], .z = a.m[idx(2, 2)] };
+
+            // Extract scale as length of each column
+            var sx = Vec3T.length(col0);
+            const sy = Vec3T.length(col1);
+            const sz = Vec3T.length(col2);
+
+            // Handle reflection (negative determinant)
+            const det = col0.x * (col1.y * col2.z - col1.z * col2.y) -
+                col0.y * (col1.x * col2.z - col1.z * col2.x) +
+                col0.z * (col1.x * col2.y - col1.y * col2.x);
+            if (det < 0) sx = -sx;
+
+            // Normalize columns to get pure rotation
+            if (sx != 0) col0 = Vec3T.scale(col0, 1.0 / sx);
+            if (sy != 0) col1 = Vec3T.scale(col1, 1.0 / sy);
+            if (sz != 0) col2 = Vec3T.scale(col2, 1.0 / sz);
+
+            var rotation: Mat3T = undefined;
+            rotation.m[Mat3T.idx(0, 0)] = col0.x;
+            rotation.m[Mat3T.idx(0, 1)] = col0.y;
+            rotation.m[Mat3T.idx(0, 2)] = col0.z;
+            rotation.m[Mat3T.idx(1, 0)] = col1.x;
+            rotation.m[Mat3T.idx(1, 1)] = col1.y;
+            rotation.m[Mat3T.idx(1, 2)] = col1.z;
+            rotation.m[Mat3T.idx(2, 0)] = col2.x;
+            rotation.m[Mat3T.idx(2, 1)] = col2.y;
+            rotation.m[Mat3T.idx(2, 2)] = col2.z;
+
+            return .{
+                .translation = translation,
+                .rotation = rotation,
+                .scale_val = Vec3T{ .x = sx, .y = sy, .z = sz },
+            };
+        }
+
         pub fn inverseTranspose(a: Self) Self {
             comptime {
                 if (C != R) @compileError("inverseTranspose() requires a square matrix");
@@ -2488,4 +2539,45 @@ test "mat4: inverseTranspose matches inverse().transpose()" {
     const it = Mat4.inverseTranspose(m);
     const expected = m.inverse().transpose();
     try expectMat4(expected.m, it.m);
+}
+
+// ── Matrix Decompose Tests ──
+
+const Mat3 = zlm.Mat3(f32);
+
+test "mat4: decompose translation only" {
+    const m = Mat4.translate(Mat4.identity(), Vec3.init(3, 4, 5));
+    const d = Mat4.decompose(m);
+    try expectApprox(3.0, d.translation.x);
+    try expectApprox(4.0, d.translation.y);
+    try expectApprox(5.0, d.translation.z);
+    try expectApprox(1.0, d.scale_val.x);
+    try expectApprox(1.0, d.scale_val.y);
+    try expectApprox(1.0, d.scale_val.z);
+}
+
+test "mat4: decompose scale only" {
+    const m = Mat4.reScale(Mat4.identity(), Vec3.init(2, 3, 4));
+    const d = Mat4.decompose(m);
+    try expectApprox(2.0, d.scale_val.x);
+    try expectApprox(3.0, d.scale_val.y);
+    try expectApprox(4.0, d.scale_val.z);
+    try expectApprox(0.0, d.translation.x);
+}
+
+test "mat4: decompose TRS roundtrip" {
+    var m = Mat4.identity();
+    m = Mat4.translate(m, Vec3.init(1, 2, 3));
+    m = Mat4.rotate(m, 0.7, Vec3.init(0, 1, 0));
+    m = Mat4.reScale(m, Vec3.init(2, 2, 2));
+
+    const d = Mat4.decompose(m);
+    try expectApprox(1.0, d.translation.x);
+    try expectApprox(2.0, d.translation.y);
+    try expectApprox(3.0, d.translation.z);
+    try expectApprox(2.0, d.scale_val.x);
+    try expectApprox(2.0, d.scale_val.y);
+    try expectApprox(2.0, d.scale_val.z);
+    // Rotation matrix should be orthogonal (det = 1)
+    try expectApprox(1.0, d.rotation.determinant());
 }
