@@ -374,12 +374,12 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
         fn inv2x2(a: Self) Self {
             const det = a.m[idx(0, 0)] * a.m[idx(1, 1)] - a.m[idx(0, 1)] * a.m[idx(1, 0)];
             const inv_det = 1.0 / det;
-            var result: Self = undefined;
-            result.m[idx(0, 0)] = a.m[idx(1, 1)] * inv_det;
-            result.m[idx(0, 1)] = -a.m[idx(0, 1)] * inv_det;
-            result.m[idx(1, 0)] = -a.m[idx(1, 0)] * inv_det;
-            result.m[idx(1, 1)] = a.m[idx(0, 0)] * inv_det;
-            return result;
+            return Self{ .m = .{
+                 a.m[idx(1, 1)] * inv_det,
+                -a.m[idx(0, 1)] * inv_det,
+                -a.m[idx(1, 0)] * inv_det,
+                 a.m[idx(0, 0)] * inv_det,
+            } };
         }
 
         fn inv3x3(a: Self) Self {
@@ -396,17 +396,19 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
             const det = a00 * (a11 * a22 - a12 * a21) - a01 * (a10 * a22 - a12 * a20) + a02 * (a10 * a21 - a11 * a20);
             const inv_det = 1.0 / det;
 
-            var result: Self = undefined;
-            result.m[idx(0, 0)] = (a11 * a22 - a12 * a21) * inv_det;
-            result.m[idx(0, 1)] = (a02 * a21 - a01 * a22) * inv_det;
-            result.m[idx(0, 2)] = (a01 * a12 - a02 * a11) * inv_det;
-            result.m[idx(1, 0)] = (a12 * a20 - a10 * a22) * inv_det;
-            result.m[idx(1, 1)] = (a00 * a22 - a02 * a20) * inv_det;
-            result.m[idx(1, 2)] = (a02 * a10 - a00 * a12) * inv_det;
-            result.m[idx(2, 0)] = (a10 * a21 - a11 * a20) * inv_det;
-            result.m[idx(2, 1)] = (a01 * a20 - a00 * a21) * inv_det;
-            result.m[idx(2, 2)] = (a00 * a11 - a01 * a10) * inv_det;
-            return result;
+            return Self{ .m = .{
+                (a11 * a22 - a12 * a21) * inv_det,
+                (a02 * a21 - a01 * a22) * inv_det,
+                (a01 * a12 - a02 * a11) * inv_det,
+
+                (a12 * a20 - a10 * a22) * inv_det,
+                (a00 * a22 - a02 * a20) * inv_det,
+                (a02 * a10 - a00 * a12) * inv_det,
+
+                (a10 * a21 - a11 * a20) * inv_det,
+                (a01 * a20 - a00 * a21) * inv_det,
+                (a00 * a11 - a01 * a10) * inv_det,
+            } };
         }
 
         fn inv4x4(a: Self) Self {
