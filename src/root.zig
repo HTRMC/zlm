@@ -638,6 +638,25 @@ fn GenRotor3(comptime T: type, comptime config: Config) type {
             const inv = 1.0 / n2;
             return .{ .s = r.s * inv, .e12 = -r.e12 * inv, .e13 = -r.e13 * inv, .e23 = -r.e23 * inv };
         }
+
+        // ── Rotation ──
+
+        pub fn rotate(r: Self, v: Vec3T) Vec3T {
+            const w = r.s;
+            const qx = r.e23;
+            const qy = -r.e13;
+            const qz = r.e12;
+
+            const tx = 2 * (qy * v.z - qz * v.y);
+            const ty = 2 * (qz * v.x - qx * v.z);
+            const tz = 2 * (qx * v.y - qy * v.x);
+
+            return Vec3T{
+                .x = v.x + w * tx + (qy * tz - qz * ty),
+                .y = v.y + w * ty + (qz * tx - qx * tz),
+                .z = v.z + w * tz + (qx * ty - qy * tx),
+            };
+        }
     };
 }
 
