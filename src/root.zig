@@ -991,6 +991,52 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
             } };
         }
 
+        pub fn affineInverse(a: Self) Self {
+            comptime if (C != 4 or R != 4) @compileError("affineInverse() requires a 4x4 matrix");
+            // For an affine matrix [R t; 0 1], inverse is [R^T  -R^T*t; 0 1]
+            const r00 = a.m[idx(0, 0)];
+            const r01 = a.m[idx(1, 0)];
+            const r02 = a.m[idx(2, 0)];
+            const r10 = a.m[idx(0, 1)];
+            const r11 = a.m[idx(1, 1)];
+            const r12 = a.m[idx(2, 1)];
+            const r20 = a.m[idx(0, 2)];
+            const r21 = a.m[idx(1, 2)];
+            const r22 = a.m[idx(2, 2)];
+            const tx = a.m[idx(3, 0)];
+            const ty = a.m[idx(3, 1)];
+            const tz = a.m[idx(3, 2)];
+
+            var result: Self = undefined;
+            // Transpose of upper-left 3x3
+            result.m[idx(0, 0)] = r00;
+            result.m[idx(0, 1)] = r01;
+            result.m[idx(0, 2)] = r02;
+            result.m[idx(1, 0)] = r10;
+            result.m[idx(1, 1)] = r11;
+            result.m[idx(1, 2)] = r12;
+            result.m[idx(2, 0)] = r20;
+            result.m[idx(2, 1)] = r21;
+            result.m[idx(2, 2)] = r22;
+            // -R^T * t
+            result.m[idx(3, 0)] = -(r00 * tx + r10 * ty + r20 * tz);
+            result.m[idx(3, 1)] = -(r01 * tx + r11 * ty + r21 * tz);
+            result.m[idx(3, 2)] = -(r02 * tx + r12 * ty + r22 * tz);
+            // Last row
+            result.m[idx(0, 3)] = 0;
+            result.m[idx(1, 3)] = 0;
+            result.m[idx(2, 3)] = 0;
+            result.m[idx(3, 3)] = 1;
+            return result;
+        }
+
+        pub fn inverseTranspose(a: Self) Self {
+            comptime {
+                if (C != R) @compileError("inverseTranspose() requires a square matrix");
+            }
+            return a.inverse().transpose();
+        }
+
         pub fn project(obj: GenVec3(T), model: Self, proj: Self, viewport: GenVec4(T)) GenVec3(T) {
             comptime if (C != 4 or R != 4) @compileError("project() requires a 4x4 matrix");
             const mvp = proj.mul(model);
@@ -2409,4 +2455,37 @@ test "quat: intermediate is valid quaternion" {
     // Should produce a valid (finite) quaternion
     try testing.expect(!std.math.isNan(s.w));
     try testing.expect(!std.math.isNan(s.x));
+}
+
+// ── Matrix affineInverse / inverseTranspose Tests ──
+
+test "mat4: affineInverse of translation" {
+    const m = Mat4.translate(Mat4.identity(), Vec3.init(3, 4, 5));
+    const inv = Mat4.affineInverse(m);
+    // Should have negated translation
+    try expectApprox(-3.0, inv.m[Mat4.idx(3, 0)]);
+    try expectApprox(-4.0, inv.m[Mat4.idx(3, 1)]);
+    try expectApprox(-5.0, inv.m[Mat4.idx(3, 2)]);
+    // Upper-left 3x3 should be identity (transpose of identity)
+    try expectApprox(1.0, inv.m[Mat4.idx(0, 0)]);
+    try expectApprox(1.0, inv.m[Mat4.idx(1, 1)]);
+    try expectApprox(1.0, inv.m[Mat4.idx(2, 2)]);
+}
+
+test "mat4: affineInverse roundtrip" {
+    var m = Mat4.identity();
+    m = Mat4.translate(m, Vec3.init(1, 2, 3));
+    m = Mat4.rotate(m, 0.7, Vec3.init(0, 1, 0));
+    const inv = Mat4.affineInverse(m);
+    const prod = m.mul(inv);
+    try expectMat4(Mat4.identity().m, prod.m);
+}
+
+test "mat4: inverseTranspose matches inverse().transpose()" {
+    var m = Mat4.identity();
+    m = Mat4.translate(m, Vec3.init(1, 2, 3));
+    m = Mat4.rotate(m, 0.5, Vec3.init(1, 0, 0));
+    const it = Mat4.inverseTranspose(m);
+    const expected = m.inverse().transpose();
+    try expectMat4(expected.m, it.m);
 }
