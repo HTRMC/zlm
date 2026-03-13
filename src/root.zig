@@ -1094,6 +1094,7 @@ const zlm = init(.{ .graphics_api = .vulkan, .shader_lang = .glsl });
 const Mat4 = zlm.Mat4(f32);
 const Vec3 = zlm.Vec3(f32);
 const Rotor3 = zlm.Rotor3(f32);
+const Quat = zlm.Quat(f32);
 
 test "translate identity" {
     const m = Mat4.translate(Mat4.identity(), Vec3.init(2.0, 3.0, 4.0));
@@ -1315,4 +1316,113 @@ test "rotor3: normalize produces unit norm" {
     const r = Rotor3.init(2, 3, 4, 5);
     const n = Rotor3.normalize(r);
     try expectApprox(1.0, Rotor3.norm(n));
+}
+
+// ── Quat Tests ──
+
+test "quat: identity preserves vector" {
+    const q = Quat.identity();
+    const v = Vec3.init(1.0, 2.0, 3.0);
+    const result = Quat.rotate(q, v);
+    try expectApprox(1.0, result.x);
+    try expectApprox(2.0, result.y);
+    try expectApprox(3.0, result.z);
+}
+
+test "quat: 90 deg around X" {
+    const q = Quat.fromAxisAngle(Vec3.init(1, 0, 0), std.math.pi / 2.0);
+    const v = Quat.rotate(q, Vec3.init(0, 1, 0));
+    try expectApprox(0.0, v.x);
+    try expectApprox(0.0, v.y);
+    try expectApprox(1.0, v.z);
+}
+
+test "quat: 90 deg around Y" {
+    const q = Quat.fromAxisAngle(Vec3.init(0, 1, 0), std.math.pi / 2.0);
+    const v = Quat.rotate(q, Vec3.init(0, 0, 1));
+    try expectApprox(1.0, v.x);
+    try expectApprox(0.0, v.y);
+    try expectApprox(0.0, v.z);
+}
+
+test "quat: 90 deg around Z" {
+    const q = Quat.fromAxisAngle(Vec3.init(0, 0, 1), std.math.pi / 2.0);
+    const v = Quat.rotate(q, Vec3.init(1, 0, 0));
+    try expectApprox(0.0, v.x);
+    try expectApprox(1.0, v.y);
+    try expectApprox(0.0, v.z);
+}
+
+test "quat: composition two 90 = 180" {
+    const q90 = Quat.fromAxisAngle(Vec3.init(0, 0, 1), std.math.pi / 2.0);
+    const q180 = Quat.mul(q90, q90);
+    const v = Quat.rotate(q180, Vec3.init(1, 0, 0));
+    try expectApprox(-1.0, v.x);
+    try expectApprox(0.0, v.y);
+    try expectApprox(0.0, v.z);
+}
+
+test "quat: conjugate is inverse for unit quat" {
+    const q = Quat.fromAxisAngle(Vec3.normalize(Vec3.init(1, 1, 0)), 0.7);
+    const prod = Quat.mul(q, Quat.conjugate(q));
+    try expectApprox(1.0, prod.w);
+    try expectApprox(0.0, prod.x);
+    try expectApprox(0.0, prod.y);
+    try expectApprox(0.0, prod.z);
+}
+
+test "quat: toMat4 matches Mat4.rotate" {
+    const axis = Vec3.init(0.0, 0.0, 1.0);
+    const angle: f32 = std.math.pi / 3.0;
+    const mat_rot = Mat4.rotate(Mat4.identity(), angle, axis);
+    const quat_mat = Quat.toMat4(Quat.fromAxisAngle(axis, angle));
+    try expectMat4(mat_rot.m, quat_mat.m);
+}
+
+test "quat: fromMat4 roundtrip" {
+    const axis = Vec3.normalize(Vec3.init(1, 2, 3));
+    const angle: f32 = 1.0;
+    const q = Quat.fromAxisAngle(axis, angle);
+    const m = Quat.toMat4(q);
+    const q2 = Quat.fromMat4(m);
+    const d = @abs(Quat.dot(q, q2));
+    try expectApprox(1.0, d);
+}
+
+test "quat: slerp endpoints and midpoint" {
+    const a = Quat.fromAxisAngle(Vec3.init(0, 0, 1), 0.0);
+    const b = Quat.fromAxisAngle(Vec3.init(0, 0, 1), std.math.pi / 2.0);
+
+    const s0 = Quat.slerp(a, b, 0.0);
+    try expectApprox(1.0, @abs(Quat.dot(s0, a)));
+
+    const s1 = Quat.slerp(a, b, 1.0);
+    try expectApprox(1.0, @abs(Quat.dot(s1, b)));
+
+    const s_half = Quat.slerp(a, b, 0.5);
+    const expected = Quat.fromAxisAngle(Vec3.init(0, 0, 1), std.math.pi / 4.0);
+    try expectApprox(1.0, @abs(Quat.dot(s_half, expected)));
+}
+
+test "quat: rotor3 roundtrip" {
+    const q = Quat.fromAxisAngle(Vec3.normalize(Vec3.init(1, 2, 3)), 1.5);
+    const r = Quat.toRotor3(q);
+    const q2 = Quat.fromRotor3(r);
+    try expectApprox(q.w, q2.w);
+    try expectApprox(q.x, q2.x);
+    try expectApprox(q.y, q2.y);
+    try expectApprox(q.z, q2.z);
+}
+
+test "quat: rotor3 rotation equivalence" {
+    const axis = Vec3.normalize(Vec3.init(3, 1, 4));
+    const angle: f32 = 2.1;
+    const q = Quat.fromAxisAngle(axis, angle);
+    const r = Quat.toRotor3(q);
+    const v = Vec3.init(1.0, -2.0, 0.5);
+    const vq = Quat.rotate(q, v);
+    const vr = Rotor3.rotate(r, v);
+    try expectApprox(vq.x, vr.x);
+    try expectApprox(vq.y, vr.y);
+    try expectApprox(vq.z, vr.z);
 }
