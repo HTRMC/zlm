@@ -1696,6 +1696,25 @@ fn GenQuat(comptime T: type, comptime config: Config) type {
         fn scaleComponents(q: Self, s: T) Self {
             return .{ .w = q.w * s, .x = q.x * s, .y = q.y * s, .z = q.z * s };
         }
+
+        // ── Spline interpolation ──
+
+        pub fn intermediate(prev: Self, curr: Self, next: Self) Self {
+            const inv_curr = inverse(curr);
+            const l = log(mul(inv_curr, prev));
+            const r = log(mul(inv_curr, next));
+            const avg = scaleComponents(.{
+                .w = l.w + r.w,
+                .x = l.x + r.x,
+                .y = l.y + r.y,
+                .z = l.z + r.z,
+            }, -0.25);
+            return mul(curr, exp(avg));
+        }
+
+        pub fn squad(q1: Self, q2: Self, s1: Self, s2: Self, t: T) Self {
+            return slerp(slerp(q1, q2, t), slerp(s1, s2, t), 2.0 * t * (1.0 - t));
+        }
     };
 }
 
@@ -2360,4 +2379,34 @@ test "quat: pow(q, 2) matches mul(q, q)" {
     try expectApprox(qmul.x, q2.x);
     try expectApprox(qmul.y, q2.y);
     try expectApprox(qmul.z, q2.z);
+}
+
+// ── Quaternion Squad Tests ──
+
+test "quat: squad endpoints match slerp" {
+    const q0 = Quat.fromAxisAngle(Vec3.init(0, 0, 1), 0.0);
+    const q1 = Quat.fromAxisAngle(Vec3.init(0, 0, 1), std.math.pi / 4.0);
+    const q2 = Quat.fromAxisAngle(Vec3.init(0, 0, 1), std.math.pi / 2.0);
+    const q3 = Quat.fromAxisAngle(Vec3.init(0, 0, 1), 3.0 * std.math.pi / 4.0);
+
+    const s1 = Quat.intermediate(q0, q1, q2);
+    const s2 = Quat.intermediate(q1, q2, q3);
+
+    // At t=0, squad should return q1
+    const at0 = Quat.squad(q1, q2, s1, s2, 0.0);
+    try expectApprox(1.0, @abs(Quat.dot(at0, q1)));
+
+    // At t=1, squad should return q2
+    const at1 = Quat.squad(q1, q2, s1, s2, 1.0);
+    try expectApprox(1.0, @abs(Quat.dot(at1, q2)));
+}
+
+test "quat: intermediate is valid quaternion" {
+    const q0 = Quat.fromAxisAngle(Vec3.init(1, 0, 0), 0.3);
+    const q1 = Quat.fromAxisAngle(Vec3.init(0, 1, 0), 0.7);
+    const q2 = Quat.fromAxisAngle(Vec3.init(0, 0, 1), 1.1);
+    const s = Quat.intermediate(q0, q1, q2);
+    // Should produce a valid (finite) quaternion
+    try testing.expect(!std.math.isNan(s.w));
+    try testing.expect(!std.math.isNan(s.x));
 }
