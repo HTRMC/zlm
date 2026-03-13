@@ -155,6 +155,22 @@ fn GenVec2(comptime T: type) type {
             if (dot(nref, i) < 0) return n;
             return .{ .x = -n.x, .y = -n.y };
         }
+
+        pub fn compAdd(v: Self) T {
+            return v.x + v.y;
+        }
+
+        pub fn compMul(v: Self) T {
+            return v.x * v.y;
+        }
+
+        pub fn compMin(v: Self) T {
+            return @min(v.x, v.y);
+        }
+
+        pub fn compMax(v: Self) T {
+            return @max(v.x, v.y);
+        }
     };
 }
 
@@ -276,6 +292,22 @@ fn GenVec3(comptime T: type) type {
         pub fn faceforward(n: Self, i: Self, nref: Self) Self {
             if (dot(nref, i) < 0) return n;
             return .{ .x = -n.x, .y = -n.y, .z = -n.z };
+        }
+
+        pub fn compAdd(v: Self) T {
+            return v.x + v.y + v.z;
+        }
+
+        pub fn compMul(v: Self) T {
+            return v.x * v.y * v.z;
+        }
+
+        pub fn compMin(v: Self) T {
+            return @min(v.x, @min(v.y, v.z));
+        }
+
+        pub fn compMax(v: Self) T {
+            return @max(v.x, @max(v.y, v.z));
         }
     };
 }
@@ -402,6 +434,22 @@ fn GenVec4(comptime T: type) type {
         pub fn faceforward(n: Self, i: Self, nref: Self) Self {
             if (dot(nref, i) < 0) return n;
             return .{ .x = -n.x, .y = -n.y, .z = -n.z, .w = -n.w };
+        }
+
+        pub fn compAdd(v: Self) T {
+            return v.x + v.y + v.z + v.w;
+        }
+
+        pub fn compMul(v: Self) T {
+            return v.x * v.y * v.z * v.w;
+        }
+
+        pub fn compMin(v: Self) T {
+            return @min(v.x, @min(v.y, @min(v.z, v.w)));
+        }
+
+        pub fn compMax(v: Self) T {
+            return @max(v.x, @max(v.y, @max(v.z, v.w)));
         }
     };
 }
@@ -1982,4 +2030,22 @@ test "vec3: faceforward" {
     try expectApprox(0.0, f.x);
     try expectApprox(-1.0, f.y);
     try expectApprox(0.0, f.z);
+}
+
+// ── Component-wise Tests ──
+
+test "vec3: compAdd compMul compMin compMax" {
+    const v = Vec3.init(2, 3, 4);
+    try expectApprox(9.0, Vec3.compAdd(v));
+    try expectApprox(24.0, Vec3.compMul(v));
+    try expectApprox(2.0, Vec3.compMin(v));
+    try expectApprox(4.0, Vec3.compMax(v));
+}
+
+test "vec4: compAdd compMul compMin compMax" {
+    const v = Vec4.init(1, 2, 3, 4);
+    try expectApprox(10.0, Vec4.compAdd(v));
+    try expectApprox(24.0, Vec4.compMul(v));
+    try expectApprox(1.0, Vec4.compMin(v));
+    try expectApprox(4.0, Vec4.compMax(v));
 }
