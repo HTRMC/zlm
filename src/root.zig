@@ -99,6 +99,62 @@ fn GenVec2(comptime T: type) type {
             if (len < std.math.floatEps(T)) return v;
             return scale(v, 1.0 / len);
         }
+
+        pub fn distance(a: Self, b: Self) T {
+            return length(sub(a, b));
+        }
+
+        pub fn min(a: Self, b: Self) Self {
+            return .{ .x = @min(a.x, b.x), .y = @min(a.y, b.y) };
+        }
+
+        pub fn max(a: Self, b: Self) Self {
+            return .{ .x = @max(a.x, b.x), .y = @max(a.y, b.y) };
+        }
+
+        pub fn clamp(v: Self, lo: T, hi: T) Self {
+            return .{ .x = @max(lo, @min(v.x, hi)), .y = @max(lo, @min(v.y, hi)) };
+        }
+
+        pub fn mix(a: Self, b: Self, t: T) Self {
+            const omt = 1.0 - t;
+            return .{ .x = a.x * omt + b.x * t, .y = a.y * omt + b.y * t };
+        }
+
+        pub fn step(edge: T, v: Self) Self {
+            return .{
+                .x = if (v.x < edge) @as(T, 0) else 1,
+                .y = if (v.y < edge) @as(T, 0) else 1,
+            };
+        }
+
+        fn smoothstepScalar(edge0: T, edge1: T, x: T) T {
+            const t = @max(@as(T, 0), @min((x - edge0) / (edge1 - edge0), @as(T, 1)));
+            return t * t * (3.0 - 2.0 * t);
+        }
+
+        pub fn smoothstep(edge0: T, edge1: T, v: Self) Self {
+            return .{
+                .x = smoothstepScalar(edge0, edge1, v.x),
+                .y = smoothstepScalar(edge0, edge1, v.y),
+            };
+        }
+
+        pub fn reflect(i: Self, n: Self) Self {
+            return sub(i, scale(n, 2.0 * dot(n, i)));
+        }
+
+        pub fn refract(i: Self, n: Self, eta: T) Self {
+            const d = dot(n, i);
+            const k = 1.0 - eta * eta * (1.0 - d * d);
+            if (k < 0) return .{ .x = 0, .y = 0 };
+            return sub(scale(i, eta), scale(n, eta * d + @sqrt(k)));
+        }
+
+        pub fn faceforward(n: Self, i: Self, nref: Self) Self {
+            if (dot(nref, i) < 0) return n;
+            return .{ .x = -n.x, .y = -n.y };
+        }
     };
 }
 
@@ -159,6 +215,68 @@ fn GenVec3(comptime T: type) type {
                 .z = a.x * b.y - a.y * b.x,
             };
         }
+
+        pub fn distance(a: Self, b: Self) T {
+            return length(sub(a, b));
+        }
+
+        pub fn min(a: Self, b: Self) Self {
+            return .{ .x = @min(a.x, b.x), .y = @min(a.y, b.y), .z = @min(a.z, b.z) };
+        }
+
+        pub fn max(a: Self, b: Self) Self {
+            return .{ .x = @max(a.x, b.x), .y = @max(a.y, b.y), .z = @max(a.z, b.z) };
+        }
+
+        pub fn clamp(v: Self, lo: T, hi: T) Self {
+            return .{
+                .x = @max(lo, @min(v.x, hi)),
+                .y = @max(lo, @min(v.y, hi)),
+                .z = @max(lo, @min(v.z, hi)),
+            };
+        }
+
+        pub fn mix(a: Self, b: Self, t: T) Self {
+            const omt = 1.0 - t;
+            return .{ .x = a.x * omt + b.x * t, .y = a.y * omt + b.y * t, .z = a.z * omt + b.z * t };
+        }
+
+        pub fn step(edge: T, v: Self) Self {
+            return .{
+                .x = if (v.x < edge) @as(T, 0) else 1,
+                .y = if (v.y < edge) @as(T, 0) else 1,
+                .z = if (v.z < edge) @as(T, 0) else 1,
+            };
+        }
+
+        fn smoothstepScalar(edge0: T, edge1: T, x: T) T {
+            const t = @max(@as(T, 0), @min((x - edge0) / (edge1 - edge0), @as(T, 1)));
+            return t * t * (3.0 - 2.0 * t);
+        }
+
+        pub fn smoothstep(edge0: T, edge1: T, v: Self) Self {
+            return .{
+                .x = smoothstepScalar(edge0, edge1, v.x),
+                .y = smoothstepScalar(edge0, edge1, v.y),
+                .z = smoothstepScalar(edge0, edge1, v.z),
+            };
+        }
+
+        pub fn reflect(i: Self, n: Self) Self {
+            return sub(i, scale(n, 2.0 * dot(n, i)));
+        }
+
+        pub fn refract(i: Self, n: Self, eta: T) Self {
+            const d = dot(n, i);
+            const k = 1.0 - eta * eta * (1.0 - d * d);
+            if (k < 0) return .{ .x = 0, .y = 0, .z = 0 };
+            return sub(scale(i, eta), scale(n, eta * d + @sqrt(k)));
+        }
+
+        pub fn faceforward(n: Self, i: Self, nref: Self) Self {
+            if (dot(nref, i) < 0) return n;
+            return .{ .x = -n.x, .y = -n.y, .z = -n.z };
+        }
     };
 }
 
@@ -214,6 +332,76 @@ fn GenVec4(comptime T: type) type {
             const len = length(v);
             if (len < std.math.floatEps(T)) return v;
             return scale(v, 1.0 / len);
+        }
+
+        pub fn distance(a: Self, b: Self) T {
+            return length(sub(a, b));
+        }
+
+        pub fn min(a: Self, b: Self) Self {
+            return .{ .x = @min(a.x, b.x), .y = @min(a.y, b.y), .z = @min(a.z, b.z), .w = @min(a.w, b.w) };
+        }
+
+        pub fn max(a: Self, b: Self) Self {
+            return .{ .x = @max(a.x, b.x), .y = @max(a.y, b.y), .z = @max(a.z, b.z), .w = @max(a.w, b.w) };
+        }
+
+        pub fn clamp(v: Self, lo: T, hi: T) Self {
+            return .{
+                .x = @max(lo, @min(v.x, hi)),
+                .y = @max(lo, @min(v.y, hi)),
+                .z = @max(lo, @min(v.z, hi)),
+                .w = @max(lo, @min(v.w, hi)),
+            };
+        }
+
+        pub fn mix(a: Self, b: Self, t: T) Self {
+            const omt = 1.0 - t;
+            return .{
+                .x = a.x * omt + b.x * t,
+                .y = a.y * omt + b.y * t,
+                .z = a.z * omt + b.z * t,
+                .w = a.w * omt + b.w * t,
+            };
+        }
+
+        pub fn step(edge: T, v: Self) Self {
+            return .{
+                .x = if (v.x < edge) @as(T, 0) else 1,
+                .y = if (v.y < edge) @as(T, 0) else 1,
+                .z = if (v.z < edge) @as(T, 0) else 1,
+                .w = if (v.w < edge) @as(T, 0) else 1,
+            };
+        }
+
+        fn smoothstepScalar(edge0: T, edge1: T, x: T) T {
+            const t = @max(@as(T, 0), @min((x - edge0) / (edge1 - edge0), @as(T, 1)));
+            return t * t * (3.0 - 2.0 * t);
+        }
+
+        pub fn smoothstep(edge0: T, edge1: T, v: Self) Self {
+            return .{
+                .x = smoothstepScalar(edge0, edge1, v.x),
+                .y = smoothstepScalar(edge0, edge1, v.y),
+                .z = smoothstepScalar(edge0, edge1, v.z),
+                .w = smoothstepScalar(edge0, edge1, v.w),
+            };
+        }
+
+        pub fn reflect(i: Self, n: Self) Self {
+            return sub(i, scale(n, 2.0 * dot(n, i)));
+        }
+
+        pub fn refract(i: Self, n: Self, eta: T) Self {
+            const d = dot(n, i);
+            const k = 1.0 - eta * eta * (1.0 - d * d);
+            if (k < 0) return .{ .x = 0, .y = 0, .z = 0, .w = 0 };
+            return sub(scale(i, eta), scale(n, eta * d + @sqrt(k)));
+        }
+
+        pub fn faceforward(n: Self, i: Self, nref: Self) Self {
+            if (dot(nref, i) < 0) return n;
+            return .{ .x = -n.x, .y = -n.y, .z = -n.z, .w = -n.w };
         }
     };
 }
@@ -1709,4 +1897,89 @@ test "pickMatrix: identity-like for full viewport" {
     try expectApprox(1.0, m.m[Mat4.idx(1, 1)]);
     try expectApprox(0.0, m.m[Mat4.idx(3, 0)]);
     try expectApprox(0.0, m.m[Mat4.idx(3, 1)]);
+}
+
+// ── GLSL-style Vector Tests ──
+
+test "vec3: distance" {
+    const a = Vec3.init(1, 0, 0);
+    const b = Vec3.init(0, 0, 0);
+    try expectApprox(1.0, Vec3.distance(a, b));
+}
+
+test "vec3: min max" {
+    const a = Vec3.init(1, 5, 3);
+    const b = Vec3.init(4, 2, 6);
+    const lo = Vec3.min(a, b);
+    const hi = Vec3.max(a, b);
+    try expectApprox(1.0, lo.x);
+    try expectApprox(2.0, lo.y);
+    try expectApprox(3.0, lo.z);
+    try expectApprox(4.0, hi.x);
+    try expectApprox(5.0, hi.y);
+    try expectApprox(6.0, hi.z);
+}
+
+test "vec3: clamp" {
+    const v = Vec3.init(-1, 0.5, 2);
+    const c = Vec3.clamp(v, 0.0, 1.0);
+    try expectApprox(0.0, c.x);
+    try expectApprox(0.5, c.y);
+    try expectApprox(1.0, c.z);
+}
+
+test "vec3: mix" {
+    const a = Vec3.init(0, 0, 0);
+    const b = Vec3.init(10, 20, 30);
+    const m = Vec3.mix(a, b, 0.5);
+    try expectApprox(5.0, m.x);
+    try expectApprox(10.0, m.y);
+    try expectApprox(15.0, m.z);
+}
+
+test "vec3: step" {
+    const v = Vec3.init(0.3, 0.5, 0.7);
+    const s = Vec3.step(0.5, v);
+    try expectApprox(0.0, s.x);
+    try expectApprox(1.0, s.y);
+    try expectApprox(1.0, s.z);
+}
+
+test "vec3: smoothstep" {
+    const v = Vec3.init(0.0, 0.5, 1.0);
+    const s = Vec3.smoothstep(0.0, 1.0, v);
+    try expectApprox(0.0, s.x);
+    try expectApprox(0.5, s.y);
+    try expectApprox(1.0, s.z);
+}
+
+test "vec3: reflect" {
+    // Reflect (1,-1,0) off horizontal surface with normal (0,1,0)
+    const i = Vec3.normalize(Vec3.init(1, -1, 0));
+    const n = Vec3.init(0, 1, 0);
+    const r = Vec3.reflect(i, n);
+    const expected = Vec3.normalize(Vec3.init(1, 1, 0));
+    try expectApprox(expected.x, r.x);
+    try expectApprox(expected.y, r.y);
+    try expectApprox(expected.z, r.z);
+}
+
+test "vec3: refract no total internal reflection" {
+    const i = Vec3.init(0, -1, 0);
+    const n = Vec3.init(0, 1, 0);
+    const r = Vec3.refract(i, n, 1.0); // eta=1 => no bending
+    try expectApprox(0.0, r.x);
+    try expectApprox(-1.0, r.y);
+    try expectApprox(0.0, r.z);
+}
+
+test "vec3: faceforward" {
+    const n = Vec3.init(0, 1, 0);
+    const i = Vec3.init(0, 1, 0); // same direction as normal
+    const nref = Vec3.init(0, 1, 0);
+    const f = Vec3.faceforward(n, i, nref);
+    // dot(nref, i) > 0, so flip
+    try expectApprox(0.0, f.x);
+    try expectApprox(-1.0, f.y);
+    try expectApprox(0.0, f.z);
 }
