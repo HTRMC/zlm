@@ -838,6 +838,7 @@ fn expectMat4(expected: [16]f32, actual: [16]f32) !void {
 const zlm = init(.{ .graphics_api = .vulkan, .shader_lang = .glsl });
 const Mat4 = zlm.Mat4(f32);
 const Vec3 = zlm.Vec3(f32);
+const Rotor3 = zlm.Rotor3(f32);
 
 test "translate identity" {
     const m = Mat4.translate(Mat4.identity(), Vec3.init(2.0, 3.0, 4.0));
@@ -948,4 +949,115 @@ test "translate then rotate then reScale" {
     try expectApprox(1.0, px);
     try expectApprox(4.0, py);
     try expectApprox(3.0, pz);
+}
+
+// ── Rotor3 Tests ──
+
+test "rotor3: identity preserves vector" {
+    const r = Rotor3.identity();
+    const v = Vec3.init(1.0, 2.0, 3.0);
+    const result = Rotor3.rotate(r, v);
+    try expectApprox(1.0, result.x);
+    try expectApprox(2.0, result.y);
+    try expectApprox(3.0, result.z);
+}
+
+test "rotor3: 90 deg around X" {
+    const r = Rotor3.fromAxisAngle(Vec3.init(1, 0, 0), std.math.pi / 2.0);
+    // (0,1,0) -> (0,0,1)
+    const v = Rotor3.rotate(r, Vec3.init(0, 1, 0));
+    try expectApprox(0.0, v.x);
+    try expectApprox(0.0, v.y);
+    try expectApprox(1.0, v.z);
+}
+
+test "rotor3: 90 deg around Y" {
+    const r = Rotor3.fromAxisAngle(Vec3.init(0, 1, 0), std.math.pi / 2.0);
+    // (0,0,1) -> (1,0,0)... wait: R_y(90)(0,0,1) = (sin90, 0, cos90) = (1,0,0)
+    const v = Rotor3.rotate(r, Vec3.init(0, 0, 1));
+    try expectApprox(1.0, v.x);
+    try expectApprox(0.0, v.y);
+    try expectApprox(0.0, v.z);
+}
+
+test "rotor3: 90 deg around Z" {
+    const r = Rotor3.fromAxisAngle(Vec3.init(0, 0, 1), std.math.pi / 2.0);
+    // (1,0,0) -> (0,1,0)
+    const v = Rotor3.rotate(r, Vec3.init(1, 0, 0));
+    try expectApprox(0.0, v.x);
+    try expectApprox(1.0, v.y);
+    try expectApprox(0.0, v.z);
+}
+
+test "rotor3: axis-angle roundtrip" {
+    const axis = Vec3.normalize(Vec3.init(1.0, 2.0, 3.0));
+    const angle: f32 = 1.23;
+    const r = Rotor3.fromAxisAngle(axis, angle);
+    const aa = Rotor3.toAxisAngle(r);
+    try expectApprox(axis.x, aa.axis.x);
+    try expectApprox(axis.y, aa.axis.y);
+    try expectApprox(axis.z, aa.axis.z);
+    try expectApprox(angle, aa.angle);
+}
+
+test "rotor3: composition two 90 = 180" {
+    const r90 = Rotor3.fromAxisAngle(Vec3.init(0, 0, 1), std.math.pi / 2.0);
+    const r180 = Rotor3.mul(r90, r90);
+    // (1,0,0) rotated 180 around Z -> (-1,0,0)
+    const v = Rotor3.rotate(r180, Vec3.init(1, 0, 0));
+    try expectApprox(-1.0, v.x);
+    try expectApprox(0.0, v.y);
+    try expectApprox(0.0, v.z);
+}
+
+test "rotor3: conjugate is inverse for unit rotor" {
+    const r = Rotor3.fromAxisAngle(Vec3.normalize(Vec3.init(1, 1, 0)), 0.7);
+    const prod = Rotor3.mul(r, Rotor3.conjugate(r));
+    try expectApprox(1.0, prod.s);
+    try expectApprox(0.0, prod.e12);
+    try expectApprox(0.0, prod.e13);
+    try expectApprox(0.0, prod.e23);
+}
+
+test "rotor3: toMat4 matches Mat4.rotate" {
+    const axis = Vec3.init(0.0, 0.0, 1.0);
+    const angle: f32 = std.math.pi / 3.0;
+    const mat_rot = Mat4.rotate(Mat4.identity(), angle, axis);
+    const rotor_mat = Rotor3.toMat4(Rotor3.fromAxisAngle(axis, angle));
+    try expectMat4(mat_rot.m, rotor_mat.m);
+}
+
+test "rotor3: fromMat4 roundtrip" {
+    const axis = Vec3.normalize(Vec3.init(1, 2, 3));
+    const angle: f32 = 1.0;
+    const r = Rotor3.fromAxisAngle(axis, angle);
+    const m = Rotor3.toMat4(r);
+    const r2 = Rotor3.fromMat4(m);
+    // Rotors may differ by sign (double cover); compare absolute dot
+    const d = @abs(Rotor3.dot(r, r2));
+    try expectApprox(1.0, d);
+}
+
+test "rotor3: slerp endpoints and midpoint" {
+    const a = Rotor3.fromAxisAngle(Vec3.init(0, 0, 1), 0.0);
+    const b = Rotor3.fromAxisAngle(Vec3.init(0, 0, 1), std.math.pi / 2.0);
+
+    // t=0 -> a
+    const s0 = Rotor3.slerp(a, b, 0.0);
+    try expectApprox(1.0, @abs(Rotor3.dot(s0, a)));
+
+    // t=1 -> b
+    const s1 = Rotor3.slerp(a, b, 1.0);
+    try expectApprox(1.0, @abs(Rotor3.dot(s1, b)));
+
+    // t=0.5 -> 45 degrees
+    const s_half = Rotor3.slerp(a, b, 0.5);
+    const expected = Rotor3.fromAxisAngle(Vec3.init(0, 0, 1), std.math.pi / 4.0);
+    try expectApprox(1.0, @abs(Rotor3.dot(s_half, expected)));
+}
+
+test "rotor3: normalize produces unit norm" {
+    const r = Rotor3.init(2, 3, 4, 5);
+    const n = Rotor3.normalize(r);
+    try expectApprox(1.0, Rotor3.norm(n));
 }
