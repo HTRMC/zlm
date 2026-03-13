@@ -643,6 +643,73 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
                 -Vec3T.dot(s, eye), -Vec3T.dot(u, eye), Vec3T.dot(f, eye), 1,
             } };
         }
+
+        pub fn project(obj: GenVec3(T), model: Self, proj: Self, viewport: GenVec4(T)) GenVec3(T) {
+            comptime if (C != 4 or R != 4) @compileError("project() requires a 4x4 matrix");
+            const mvp = proj.mul(model);
+
+            // Transform object coordinates: tmp = MVP * (obj, 1)
+            var tmp_x = mvp.m[idx(0, 0)] * obj.x + mvp.m[idx(1, 0)] * obj.y + mvp.m[idx(2, 0)] * obj.z + mvp.m[idx(3, 0)];
+            var tmp_y = mvp.m[idx(0, 1)] * obj.x + mvp.m[idx(1, 1)] * obj.y + mvp.m[idx(2, 1)] * obj.z + mvp.m[idx(3, 1)];
+            var tmp_z = mvp.m[idx(0, 2)] * obj.x + mvp.m[idx(1, 2)] * obj.y + mvp.m[idx(2, 2)] * obj.z + mvp.m[idx(3, 2)];
+            const tmp_w = mvp.m[idx(0, 3)] * obj.x + mvp.m[idx(1, 3)] * obj.y + mvp.m[idx(2, 3)] * obj.z + mvp.m[idx(3, 3)];
+
+            // Perspective divide
+            const inv_w = 1.0 / tmp_w;
+            tmp_x *= inv_w;
+            tmp_y *= inv_w;
+            tmp_z *= inv_w;
+
+            // Map to window coordinates
+            // NDC [-1,1] -> [0,1] for x,y; z depends on API
+            return GenVec3(T){
+                .x = viewport.x + viewport.z * (tmp_x * 0.5 + 0.5),
+                .y = viewport.y + viewport.w * (tmp_y * 0.5 + 0.5),
+                .z = switch (config.graphics_api) {
+                    .vulkan => tmp_z, // already [0,1]
+                    .opengl => tmp_z * 0.5 + 0.5, // [-1,1] -> [0,1]
+                },
+            };
+        }
+
+        pub fn unProject(win: GenVec3(T), model: Self, proj: Self, viewport: GenVec4(T)) GenVec3(T) {
+            comptime if (C != 4 or R != 4) @compileError("unProject() requires a 4x4 matrix");
+            const inv = proj.mul(model).inverse();
+
+            // Map window coordinates to NDC
+            var tmp_x = (win.x - viewport.x) / viewport.z * 2.0 - 1.0;
+            var tmp_y = (win.y - viewport.y) / viewport.w * 2.0 - 1.0;
+            const tmp_z = switch (config.graphics_api) {
+                .vulkan => win.z, // already [0,1]
+                .opengl => win.z * 2.0 - 1.0, // [0,1] -> [-1,1]
+            };
+
+            // Transform by inverse MVP
+            const out_x = inv.m[idx(0, 0)] * tmp_x + inv.m[idx(1, 0)] * tmp_y + inv.m[idx(2, 0)] * tmp_z + inv.m[idx(3, 0)];
+            const out_y = inv.m[idx(0, 1)] * tmp_x + inv.m[idx(1, 1)] * tmp_y + inv.m[idx(2, 1)] * tmp_z + inv.m[idx(3, 1)];
+            const out_z = inv.m[idx(0, 2)] * tmp_x + inv.m[idx(1, 2)] * tmp_y + inv.m[idx(2, 2)] * tmp_z + inv.m[idx(3, 2)];
+            const out_w = inv.m[idx(0, 3)] * tmp_x + inv.m[idx(1, 3)] * tmp_y + inv.m[idx(2, 3)] * tmp_z + inv.m[idx(3, 3)];
+
+            const inv_w = 1.0 / out_w;
+            _ = &tmp_x;
+            _ = &tmp_y;
+            return GenVec3(T){ .x = out_x * inv_w, .y = out_y * inv_w, .z = out_z * inv_w };
+        }
+
+        pub fn pickMatrix(center: GenVec2(T), delta: GenVec2(T), viewport: GenVec4(T)) Self {
+            comptime if (C != 4 or R != 4) @compileError("pickMatrix() requires a 4x4 matrix");
+            const tx = (viewport.z - 2.0 * (center.x - viewport.x)) / delta.x;
+            const ty = (viewport.w - 2.0 * (center.y - viewport.y)) / delta.y;
+            const sx = viewport.z / delta.x;
+            const sy = viewport.w / delta.y;
+
+            var result = identity();
+            result.m[idx(0, 0)] = sx;
+            result.m[idx(1, 1)] = sy;
+            result.m[idx(3, 0)] = tx;
+            result.m[idx(3, 1)] = ty;
+            return result;
+        }
     };
 }
 
@@ -1600,4 +1667,46 @@ test "infinitePerspective: near plane matches perspective" {
     try expectApprox(p.m[Mat4.idx(1, 1)], m.m[Mat4.idx(1, 1)]);
     // W row/col should match
     try expectApprox(-1.0, m.m[Mat4.idx(2, 3)]);
+}
+
+// ── project / unProject / pickMatrix Tests ──
+
+const Vec2 = zlm.Vec2(f32);
+const Vec4 = zlm.Vec4(f32);
+
+test "project and unProject roundtrip" {
+    const model = Mat4.identity();
+    const proj = Mat4.perspective(std.math.pi / 4.0, 16.0 / 9.0, 0.1, 100.0);
+    const viewport = Vec4.init(0, 0, 1920, 1080);
+
+    const obj = Vec3.init(1.0, 2.0, -5.0);
+    const win = Mat4.project(obj, model, proj, viewport);
+    const back = Mat4.unProject(win, model, proj, viewport);
+
+    try expectApprox(obj.x, back.x);
+    try expectApprox(obj.y, back.y);
+    try expectApprox(obj.z, back.z);
+}
+
+test "project: origin maps to screen center" {
+    const model = Mat4.identity();
+    const proj = Mat4.perspective(std.math.pi / 4.0, 1.0, 0.1, 100.0);
+    const viewport = Vec4.init(0, 0, 800, 600);
+
+    const win = Mat4.project(Vec3.init(0, 0, -1), model, proj, viewport);
+    try expectApprox(400.0, win.x);
+    try expectApprox(300.0, win.y);
+}
+
+test "pickMatrix: identity-like for full viewport" {
+    const viewport = Vec4.init(0, 0, 800, 600);
+    const center = Vec2.init(400, 300);
+    const delta = Vec2.init(800, 600);
+    const m = Mat4.pickMatrix(center, delta, viewport);
+
+    // Should be identity
+    try expectApprox(1.0, m.m[Mat4.idx(0, 0)]);
+    try expectApprox(1.0, m.m[Mat4.idx(1, 1)]);
+    try expectApprox(0.0, m.m[Mat4.idx(3, 0)]);
+    try expectApprox(0.0, m.m[Mat4.idx(3, 1)]);
 }
