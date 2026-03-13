@@ -1655,6 +1655,47 @@ fn GenQuat(comptime T: type, comptime config: Config) type {
             const x = q.w * q.w + q.x * q.x - q.y * q.y - q.z * q.z;
             return std.math.atan2(y, x);
         }
+
+        // ── Exponential ──
+
+        pub fn exp(q: Self) Self {
+            const vec_norm = @sqrt(q.x * q.x + q.y * q.y + q.z * q.z);
+            const ew = @exp(q.w);
+            if (vec_norm < std.math.floatEps(T)) {
+                return .{ .w = ew, .x = 0, .y = 0, .z = 0 };
+            }
+            const s = ew * @sin(vec_norm) / vec_norm;
+            return .{
+                .w = ew * @cos(vec_norm),
+                .x = q.x * s,
+                .y = q.y * s,
+                .z = q.z * s,
+            };
+        }
+
+        pub fn log(q: Self) Self {
+            const qn = norm(q);
+            const vec_norm = @sqrt(q.x * q.x + q.y * q.y + q.z * q.z);
+            if (vec_norm < std.math.floatEps(T)) {
+                return .{ .w = @log(qn), .x = 0, .y = 0, .z = 0 };
+            }
+            const s = std.math.acos(@max(@as(T, -1), @min(q.w / qn, @as(T, 1)))) / vec_norm;
+            return .{
+                .w = @log(qn),
+                .x = q.x * s,
+                .y = q.y * s,
+                .z = q.z * s,
+            };
+        }
+
+        pub fn pow(q: Self, exponent: T) Self {
+            if (@abs(q.w) > 1.0 - std.math.floatEps(T)) return q;
+            return exp(Self.scaleComponents(log(q), exponent));
+        }
+
+        fn scaleComponents(q: Self, s: T) Self {
+            return .{ .w = q.w * s, .x = q.x * s, .y = q.y * s, .z = q.z * s };
+        }
     };
 }
 
@@ -2280,4 +2321,43 @@ test "quat: fromEulerAngles identity" {
     try expectApprox(0.0, q.x);
     try expectApprox(0.0, q.y);
     try expectApprox(0.0, q.z);
+}
+
+// ── Quaternion Exponential Tests ──
+
+test "quat: exp of zero is identity" {
+    const q = Quat.init(0, 0, 0, 0);
+    const r = Quat.exp(q);
+    try expectApprox(1.0, r.w);
+    try expectApprox(0.0, r.x);
+    try expectApprox(0.0, r.y);
+    try expectApprox(0.0, r.z);
+}
+
+test "quat: log of identity is zero" {
+    const q = Quat.identity();
+    const r = Quat.log(q);
+    try expectApprox(0.0, r.w);
+    try expectApprox(0.0, r.x);
+    try expectApprox(0.0, r.y);
+    try expectApprox(0.0, r.z);
+}
+
+test "quat: exp(log(q)) roundtrip" {
+    const q = Quat.normalize(Quat.fromAxisAngle(Vec3.init(1, 0, 0), 1.0));
+    const r = Quat.exp(Quat.log(q));
+    try expectApprox(q.w, r.w);
+    try expectApprox(q.x, r.x);
+    try expectApprox(q.y, r.y);
+    try expectApprox(q.z, r.z);
+}
+
+test "quat: pow(q, 2) matches mul(q, q)" {
+    const q = Quat.normalize(Quat.fromAxisAngle(Vec3.init(0, 0, 1), 0.5));
+    const q2 = Quat.pow(q, 2.0);
+    const qmul = Quat.mul(q, q);
+    try expectApprox(qmul.w, q2.w);
+    try expectApprox(qmul.x, q2.x);
+    try expectApprox(qmul.y, q2.y);
+    try expectApprox(qmul.z, q2.z);
 }
