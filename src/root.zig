@@ -291,16 +291,16 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
         }
 
         // ── Square only (C == R) ──
-        // TODO make const
         pub fn identity() Self {
-            comptime {
-                if (C != R) @compileError("identity() requires a square matrix");
-            }
-            var result = Self{ .m = [_]T{0} ** (C * R) };
-            for (0..C) |i| {
-                result.m[idx(i, i)] = 1;
-            }
-            return result;
+            comptime if (C != R) @compileError("identity() requires a square matrix");
+            const m = comptime blk: {
+                var arr = [_]T{0} ** (C * R);
+                for (0..C) |i| {
+                    arr[idx(i, i)] = 1;
+                }
+                break :blk arr;
+            };
+            return Self{ .m = m };
         }
 
         pub fn trace(a: Self) T {
@@ -427,29 +427,27 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
             const det = s0 * c5 - s1 * c4 + s2 * c3 + s3 * c2 - s4 * c1 + s5 * c0;
             const inv_det = 1.0 / det;
 
-// TODO this is really gross, can it be simplified? could be const
-            var result: Self = undefined;
-            result.m[idx(0, 0)] = (a.m[idx(1, 1)] * c5 - a.m[idx(1, 2)] * c4 + a.m[idx(1, 3)] * c3) * inv_det;
-            result.m[idx(0, 1)] = (-a.m[idx(0, 1)] * c5 + a.m[idx(0, 2)] * c4 - a.m[idx(0, 3)] * c3) * inv_det;
-            result.m[idx(0, 2)] = (a.m[idx(3, 1)] * s5 - a.m[idx(3, 2)] * s4 + a.m[idx(3, 3)] * s3) * inv_det;
-            result.m[idx(0, 3)] = (-a.m[idx(2, 1)] * s5 + a.m[idx(2, 2)] * s4 - a.m[idx(2, 3)] * s3) * inv_det;
+            return Self{ .m = .{
+                ( a.m[idx(1, 1)] * c5 - a.m[idx(1, 2)] * c4 + a.m[idx(1, 3)] * c3) * inv_det,
+                (-a.m[idx(0, 1)] * c5 + a.m[idx(0, 2)] * c4 - a.m[idx(0, 3)] * c3) * inv_det,
+                ( a.m[idx(3, 1)] * s5 - a.m[idx(3, 2)] * s4 + a.m[idx(3, 3)] * s3) * inv_det,
+                (-a.m[idx(2, 1)] * s5 + a.m[idx(2, 2)] * s4 - a.m[idx(2, 3)] * s3) * inv_det,
 
-            result.m[idx(1, 0)] = (-a.m[idx(1, 0)] * c5 + a.m[idx(1, 2)] * c2 - a.m[idx(1, 3)] * c1) * inv_det;
-            result.m[idx(1, 1)] = (a.m[idx(0, 0)] * c5 - a.m[idx(0, 2)] * c2 + a.m[idx(0, 3)] * c1) * inv_det;
-            result.m[idx(1, 2)] = (-a.m[idx(3, 0)] * s5 + a.m[idx(3, 2)] * s2 - a.m[idx(3, 3)] * s1) * inv_det;
-            result.m[idx(1, 3)] = (a.m[idx(2, 0)] * s5 - a.m[idx(2, 2)] * s2 + a.m[idx(2, 3)] * s1) * inv_det;
+                (-a.m[idx(1, 0)] * c5 + a.m[idx(1, 2)] * c2 - a.m[idx(1, 3)] * c1) * inv_det,
+                ( a.m[idx(0, 0)] * c5 - a.m[idx(0, 2)] * c2 + a.m[idx(0, 3)] * c1) * inv_det,
+                (-a.m[idx(3, 0)] * s5 + a.m[idx(3, 2)] * s2 - a.m[idx(3, 3)] * s1) * inv_det,
+                ( a.m[idx(2, 0)] * s5 - a.m[idx(2, 2)] * s2 + a.m[idx(2, 3)] * s1) * inv_det,
 
-            result.m[idx(2, 0)] = (a.m[idx(1, 0)] * c4 - a.m[idx(1, 1)] * c2 + a.m[idx(1, 3)] * c0) * inv_det;
-            result.m[idx(2, 1)] = (-a.m[idx(0, 0)] * c4 + a.m[idx(0, 1)] * c2 - a.m[idx(0, 3)] * c0) * inv_det;
-            result.m[idx(2, 2)] = (a.m[idx(3, 0)] * s4 - a.m[idx(3, 1)] * s2 + a.m[idx(3, 3)] * s0) * inv_det;
-            result.m[idx(2, 3)] = (-a.m[idx(2, 0)] * s4 + a.m[idx(2, 1)] * s2 - a.m[idx(2, 3)] * s0) * inv_det;
+                ( a.m[idx(1, 0)] * c4 - a.m[idx(1, 1)] * c2 + a.m[idx(1, 3)] * c0) * inv_det,
+                (-a.m[idx(0, 0)] * c4 + a.m[idx(0, 1)] * c2 - a.m[idx(0, 3)] * c0) * inv_det,
+                ( a.m[idx(3, 0)] * s4 - a.m[idx(3, 1)] * s2 + a.m[idx(3, 3)] * s0) * inv_det,
+                (-a.m[idx(2, 0)] * s4 + a.m[idx(2, 1)] * s2 - a.m[idx(2, 3)] * s0) * inv_det,
 
-            result.m[idx(3, 0)] = (-a.m[idx(1, 0)] * c3 + a.m[idx(1, 1)] * c1 - a.m[idx(1, 2)] * c0) * inv_det;
-            result.m[idx(3, 1)] = (a.m[idx(0, 0)] * c3 - a.m[idx(0, 1)] * c1 + a.m[idx(0, 2)] * c0) * inv_det;
-            result.m[idx(3, 2)] = (-a.m[idx(3, 0)] * s3 + a.m[idx(3, 1)] * s1 - a.m[idx(3, 2)] * s0) * inv_det;
-            result.m[idx(3, 3)] = (a.m[idx(2, 0)] * s3 - a.m[idx(2, 1)] * s1 + a.m[idx(2, 2)] * s0) * inv_det;
-
-            return result;
+                (-a.m[idx(1, 0)] * c3 + a.m[idx(1, 1)] * c1 - a.m[idx(1, 2)] * c0) * inv_det,
+                ( a.m[idx(0, 0)] * c3 - a.m[idx(0, 1)] * c1 + a.m[idx(0, 2)] * c0) * inv_det,
+                (-a.m[idx(3, 0)] * s3 + a.m[idx(3, 1)] * s1 - a.m[idx(3, 2)] * s0) * inv_det,
+                ( a.m[idx(2, 0)] * s3 - a.m[idx(2, 1)] * s1 + a.m[idx(2, 2)] * s0) * inv_det,
+            } };
         }
 
         // ── 4x4 only ──
