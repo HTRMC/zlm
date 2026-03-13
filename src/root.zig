@@ -696,17 +696,41 @@ fn GenRotor3(comptime T: type, comptime config: Config) type {
         }
 
         pub fn toMat4(r: Self) Mat4T {
-            const m3 = toMat3(r);
+            const w = r.s;
+            const x = r.e23;
+            const y = -r.e13;
+            const z = r.e12;
+
+            const x2 = x + x;
+            const y2 = y + y;
+            const z2 = z + z;
+            const xx = x * x2;
+            const xy = x * y2;
+            const xz = x * z2;
+            const yy = y * y2;
+            const yz = y * z2;
+            const zz = z * z2;
+            const wx = w * x2;
+            const wy = w * y2;
+            const wz = w * z2;
+
+            const zero: T = 0;
             var result: Mat4T = undefined;
-            for (0..3) |col| {
-                for (0..3) |row| {
-                    result.m[Mat4T.idx(col, row)] = m3.m[Mat3T.idx(col, row)];
-                }
-                result.m[Mat4T.idx(col, 3)] = 0;
-            }
-            result.m[Mat4T.idx(3, 0)] = 0;
-            result.m[Mat4T.idx(3, 1)] = 0;
-            result.m[Mat4T.idx(3, 2)] = 0;
+            result.m[Mat4T.idx(0, 0)] = 1 - (yy + zz);
+            result.m[Mat4T.idx(0, 1)] = xy + wz;
+            result.m[Mat4T.idx(0, 2)] = xz - wy;
+            result.m[Mat4T.idx(0, 3)] = zero;
+            result.m[Mat4T.idx(1, 0)] = xy - wz;
+            result.m[Mat4T.idx(1, 1)] = 1 - (xx + zz);
+            result.m[Mat4T.idx(1, 2)] = yz + wx;
+            result.m[Mat4T.idx(1, 3)] = zero;
+            result.m[Mat4T.idx(2, 0)] = xz + wy;
+            result.m[Mat4T.idx(2, 1)] = yz - wx;
+            result.m[Mat4T.idx(2, 2)] = 1 - (xx + yy);
+            result.m[Mat4T.idx(2, 3)] = zero;
+            result.m[Mat4T.idx(3, 0)] = zero;
+            result.m[Mat4T.idx(3, 1)] = zero;
+            result.m[Mat4T.idx(3, 2)] = zero;
             result.m[Mat4T.idx(3, 3)] = 1;
             return result;
         }
@@ -791,7 +815,7 @@ fn GenRotor3(comptime T: type, comptime config: Config) type {
             }
 
             if (d > 1.0 - std.math.floatEps(T)) {
-                return nlerp(a, b2, t);
+                return nlerpPreflipped(a, b2, t);
             }
 
             const theta = std.math.acos(d);
@@ -812,6 +836,10 @@ fn GenRotor3(comptime T: type, comptime config: Config) type {
             if (dot(a, b) < 0) {
                 b2 = .{ .s = -b.s, .e12 = -b.e12, .e13 = -b.e13, .e23 = -b.e23 };
             }
+            return nlerpPreflipped(a, b2, t);
+        }
+
+        fn nlerpPreflipped(a: Self, b2: Self, t: T) Self {
             const omt = 1.0 - t;
             return normalize(.{
                 .s = a.s * omt + b2.s * t,
@@ -938,17 +966,36 @@ fn GenQuat(comptime T: type, comptime config: Config) type {
         }
 
         pub fn toMat4(q: Self) Mat4T {
-            const m3 = toMat3(q);
+            const x2 = q.x + q.x;
+            const y2 = q.y + q.y;
+            const z2 = q.z + q.z;
+            const xx = q.x * x2;
+            const xy = q.x * y2;
+            const xz = q.x * z2;
+            const yy = q.y * y2;
+            const yz = q.y * z2;
+            const zz = q.z * z2;
+            const wx = q.w * x2;
+            const wy = q.w * y2;
+            const wz = q.w * z2;
+
+            const zero: T = 0;
             var result: Mat4T = undefined;
-            for (0..3) |col| {
-                for (0..3) |row| {
-                    result.m[Mat4T.idx(col, row)] = m3.m[Mat3T.idx(col, row)];
-                }
-                result.m[Mat4T.idx(col, 3)] = 0;
-            }
-            result.m[Mat4T.idx(3, 0)] = 0;
-            result.m[Mat4T.idx(3, 1)] = 0;
-            result.m[Mat4T.idx(3, 2)] = 0;
+            result.m[Mat4T.idx(0, 0)] = 1 - (yy + zz);
+            result.m[Mat4T.idx(0, 1)] = xy + wz;
+            result.m[Mat4T.idx(0, 2)] = xz - wy;
+            result.m[Mat4T.idx(0, 3)] = zero;
+            result.m[Mat4T.idx(1, 0)] = xy - wz;
+            result.m[Mat4T.idx(1, 1)] = 1 - (xx + zz);
+            result.m[Mat4T.idx(1, 2)] = yz + wx;
+            result.m[Mat4T.idx(1, 3)] = zero;
+            result.m[Mat4T.idx(2, 0)] = xz + wy;
+            result.m[Mat4T.idx(2, 1)] = yz - wx;
+            result.m[Mat4T.idx(2, 2)] = 1 - (xx + yy);
+            result.m[Mat4T.idx(2, 3)] = zero;
+            result.m[Mat4T.idx(3, 0)] = zero;
+            result.m[Mat4T.idx(3, 1)] = zero;
+            result.m[Mat4T.idx(3, 2)] = zero;
             result.m[Mat4T.idx(3, 3)] = 1;
             return result;
         }
@@ -1033,7 +1080,7 @@ fn GenQuat(comptime T: type, comptime config: Config) type {
             }
 
             if (d > 1.0 - std.math.floatEps(T)) {
-                return nlerp(a, b2, t);
+                return nlerpPreflipped(a, b2, t);
             }
 
             const theta = std.math.acos(d);
@@ -1054,6 +1101,10 @@ fn GenQuat(comptime T: type, comptime config: Config) type {
             if (dot(a, b) < 0) {
                 b2 = .{ .w = -b.w, .x = -b.x, .y = -b.y, .z = -b.z };
             }
+            return nlerpPreflipped(a, b2, t);
+        }
+
+        fn nlerpPreflipped(a: Self, b2: Self, t: T) Self {
             const omt = 1.0 - t;
             return normalize(.{
                 .w = a.w * omt + b2.w * t,
