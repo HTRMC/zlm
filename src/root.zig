@@ -1611,6 +1611,50 @@ fn GenQuat(comptime T: type, comptime config: Config) type {
         pub fn fromRotor3(r: Rotor3T) Self {
             return .{ .w = r.s, .x = r.e23, .y = -r.e13, .z = r.e12 };
         }
+
+        // ── Euler angles ──
+
+        pub fn fromEulerAngles(pitch_val: T, yaw_val: T, roll_val: T) Self {
+            const hp = pitch_val * 0.5;
+            const hy = yaw_val * 0.5;
+            const hr = roll_val * 0.5;
+            const cp = @cos(hp);
+            const sp = @sin(hp);
+            const cy = @cos(hy);
+            const sy = @sin(hy);
+            const cr = @cos(hr);
+            const sr = @sin(hr);
+            return .{
+                .w = cp * cy * cr + sp * sy * sr,
+                .x = sp * cy * cr - cp * sy * sr,
+                .y = cp * sy * cr + sp * cy * sr,
+                .z = cp * cy * sr - sp * sy * cr,
+            };
+        }
+
+        pub fn eulerAngles(q: Self) Vec3T {
+            return Vec3T{
+                .x = pitch(q),
+                .y = yaw(q),
+                .z = roll(q),
+            };
+        }
+
+        pub fn pitch(q: Self) T {
+            const y = 2.0 * (q.y * q.z + q.w * q.x);
+            const x = q.w * q.w - q.x * q.x - q.y * q.y + q.z * q.z;
+            return std.math.atan2(y, x);
+        }
+
+        pub fn yaw(q: Self) T {
+            return std.math.asin(@max(@as(T, -1), @min(2.0 * (q.w * q.y - q.x * q.z), @as(T, 1))));
+        }
+
+        pub fn roll(q: Self) T {
+            const y = 2.0 * (q.x * q.y + q.w * q.z);
+            const x = q.w * q.w + q.x * q.x - q.y * q.y - q.z * q.z;
+            return std.math.atan2(y, x);
+        }
     };
 }
 
@@ -2201,4 +2245,39 @@ test "bvec3: any and all" {
 
     const all_false = BVec3{ .x = false, .y = false, .z = false };
     try testing.expect(all_false.any() == false);
+}
+
+// ── Quaternion Euler Angles Tests ──
+
+test "quat: fromEulerAngles and eulerAngles roundtrip" {
+    const p: f32 = 0.3;
+    const y: f32 = 0.5;
+    const r: f32 = 0.1;
+    const q = Quat.fromEulerAngles(p, y, r);
+    const angles = Quat.eulerAngles(q);
+    try expectApprox(p, angles.x);
+    try expectApprox(y, angles.y);
+    try expectApprox(r, angles.z);
+}
+
+test "quat: pitch yaw roll individual axes" {
+    // Pure pitch (rotation around X)
+    const qp = Quat.fromAxisAngle(Vec3.init(1, 0, 0), 0.5);
+    try expectApprox(0.5, Quat.pitch(qp));
+
+    // Pure yaw (rotation around Y)
+    const qy = Quat.fromAxisAngle(Vec3.init(0, 1, 0), 0.5);
+    try expectApprox(0.5, Quat.yaw(qy));
+
+    // Pure roll (rotation around Z)
+    const qr = Quat.fromAxisAngle(Vec3.init(0, 0, 1), 0.5);
+    try expectApprox(0.5, Quat.roll(qr));
+}
+
+test "quat: fromEulerAngles identity" {
+    const q = Quat.fromEulerAngles(0, 0, 0);
+    try expectApprox(1.0, q.w);
+    try expectApprox(0.0, q.x);
+    try expectApprox(0.0, q.y);
+    try expectApprox(0.0, q.z);
 }
