@@ -602,6 +602,42 @@ fn GenRotor3(comptime T: type, comptime config: Config) type {
                 .e23 = a.x * sh,
             };
         }
+
+        // ── Algebra ──
+
+        pub fn mul(p: Self, q: Self) Self {
+            return .{
+                .s = p.s * q.s - p.e12 * q.e12 - p.e13 * q.e13 - p.e23 * q.e23,
+                .e12 = p.s * q.e12 + p.e12 * q.s - p.e13 * q.e23 + p.e23 * q.e13,
+                .e13 = p.s * q.e13 + p.e13 * q.s + p.e12 * q.e23 - p.e23 * q.e12,
+                .e23 = p.s * q.e23 + p.e23 * q.s - p.e12 * q.e13 + p.e13 * q.e12,
+            };
+        }
+
+        pub fn conjugate(r: Self) Self {
+            return .{ .s = r.s, .e12 = -r.e12, .e13 = -r.e13, .e23 = -r.e23 };
+        }
+
+        pub fn norm(r: Self) T {
+            return @sqrt(r.s * r.s + r.e12 * r.e12 + r.e13 * r.e13 + r.e23 * r.e23);
+        }
+
+        pub fn normalize(r: Self) Self {
+            const n = norm(r);
+            if (n < std.math.floatEps(T)) return r;
+            const inv = 1.0 / n;
+            return .{ .s = r.s * inv, .e12 = r.e12 * inv, .e13 = r.e13 * inv, .e23 = r.e23 * inv };
+        }
+
+        pub fn dot(a: Self, b: Self) T {
+            return a.s * b.s + a.e12 * b.e12 + a.e13 * b.e13 + a.e23 * b.e23;
+        }
+
+        pub fn inverse(r: Self) Self {
+            const n2 = r.s * r.s + r.e12 * r.e12 + r.e13 * r.e13 + r.e23 * r.e23;
+            const inv = 1.0 / n2;
+            return .{ .s = r.s * inv, .e12 = -r.e12 * inv, .e13 = -r.e13 * inv, .e23 = -r.e23 * inv };
+        }
     };
 }
 
