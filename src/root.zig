@@ -484,6 +484,80 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
             } };
         }
 
+        pub fn ortho(left: T, right: T, bottom: T, top: T, near: T, far: T) Self {
+            comptime if (C != 4 or R != 4) @compileError("ortho() requires a 4x4 matrix");
+            const rml = right - left;
+            const tmb = top - bottom;
+            const fmn = far - near;
+            var m: [C * R]T = [_]T{0} ** (C * R);
+            m[idx(0, 0)] = 2.0 / rml;
+            m[idx(3, 0)] = -(right + left) / rml;
+            m[idx(3, 3)] = 1;
+            switch (config.graphics_api) {
+                .vulkan => {
+                    m[idx(1, 1)] = -2.0 / tmb;
+                    m[idx(3, 1)] = (top + bottom) / tmb;
+                    m[idx(2, 2)] = -1.0 / fmn;
+                    m[idx(3, 2)] = -near / fmn;
+                },
+                .opengl => {
+                    m[idx(1, 1)] = 2.0 / tmb;
+                    m[idx(3, 1)] = -(top + bottom) / tmb;
+                    m[idx(2, 2)] = -2.0 / fmn;
+                    m[idx(3, 2)] = -(far + near) / fmn;
+                },
+            }
+            return Self{ .m = m };
+        }
+
+        pub fn frustum(left: T, right: T, bottom: T, top: T, near: T, far: T) Self {
+            comptime if (C != 4 or R != 4) @compileError("frustum() requires a 4x4 matrix");
+            const rml = right - left;
+            const tmb = top - bottom;
+            const fmn = far - near;
+            const n2 = 2.0 * near;
+            var m: [C * R]T = [_]T{0} ** (C * R);
+            m[idx(0, 0)] = n2 / rml;
+            m[idx(2, 0)] = (right + left) / rml;
+            m[idx(2, 3)] = -1;
+            switch (config.graphics_api) {
+                .vulkan => {
+                    m[idx(1, 1)] = -n2 / tmb;
+                    m[idx(2, 1)] = -(top + bottom) / tmb;
+                    m[idx(2, 2)] = -far / fmn;
+                    m[idx(3, 2)] = -(far * near) / fmn;
+                },
+                .opengl => {
+                    m[idx(1, 1)] = n2 / tmb;
+                    m[idx(2, 1)] = (top + bottom) / tmb;
+                    m[idx(2, 2)] = -(far + near) / fmn;
+                    m[idx(3, 2)] = -(n2 * far) / fmn;
+                },
+            }
+            return Self{ .m = m };
+        }
+
+        pub fn infinitePerspective(fov: T, aspect: T, near: T) Self {
+            comptime if (C != 4 or R != 4) @compileError("infinitePerspective() requires a 4x4 matrix");
+            const inv_thf = 1.0 / @tan(fov / 2.0);
+            var m: [C * R]T = [_]T{0} ** (C * R);
+            m[idx(0, 0)] = inv_thf / aspect;
+            m[idx(2, 3)] = -1;
+            switch (config.graphics_api) {
+                .vulkan => {
+                    m[idx(1, 1)] = -inv_thf;
+                    m[idx(2, 2)] = -1;
+                    m[idx(3, 2)] = -near;
+                },
+                .opengl => {
+                    m[idx(1, 1)] = inv_thf;
+                    m[idx(2, 2)] = -1;
+                    m[idx(3, 2)] = -2.0 * near;
+                },
+            }
+            return Self{ .m = m };
+        }
+
         pub fn translate(m: Self, v: GenVec3(T)) Self {
             comptime {
                 if (C != 4 or R != 4) @compileError("translate() requires a 4x4 matrix");
@@ -1476,4 +1550,54 @@ test "quat: rotor3 rotation equivalence" {
     try expectApprox(vq.x, vr.x);
     try expectApprox(vq.y, vr.y);
     try expectApprox(vq.z, vr.z);
+}
+
+// ── Projection Tests ──
+
+test "ortho: basic orthographic projection" {
+    const m = Mat4.ortho(-1.0, 1.0, -1.0, 1.0, 0.1, 100.0);
+    // X scale = 2/(r-l) = 2/2 = 1
+    try expectApprox(1.0, m.m[Mat4.idx(0, 0)]);
+    // Translation X = -(r+l)/(r-l) = 0
+    try expectApprox(0.0, m.m[Mat4.idx(3, 0)]);
+    // W = 1
+    try expectApprox(1.0, m.m[Mat4.idx(3, 3)]);
+}
+
+test "ortho: asymmetric bounds" {
+    const m = Mat4.ortho(0.0, 800.0, 0.0, 600.0, -1.0, 1.0);
+    try expectApprox(2.0 / 800.0, m.m[Mat4.idx(0, 0)]);
+    try expectApprox(-1.0, m.m[Mat4.idx(3, 0)]); // -(800)/(800) = -1
+}
+
+test "frustum: matches perspective for symmetric case" {
+    const near: f32 = 0.1;
+    const far: f32 = 100.0;
+    const fov: f32 = std.math.pi / 4.0;
+    const aspect: f32 = 16.0 / 9.0;
+
+    const p = Mat4.perspective(fov, aspect, near, far);
+
+    const top = near * @tan(fov / 2.0);
+    const right = top * aspect;
+    const f = Mat4.frustum(-right, right, -top, top, near, far);
+
+    for (0..16) |i| {
+        try testing.expectApproxEqAbs(p.m[i], f.m[i], 1e-5);
+    }
+}
+
+test "infinitePerspective: near plane matches perspective" {
+    const fov: f32 = std.math.pi / 4.0;
+    const aspect: f32 = 16.0 / 9.0;
+    const near: f32 = 0.1;
+
+    const m = Mat4.infinitePerspective(fov, aspect, near);
+    const p = Mat4.perspective(fov, aspect, near, 100.0);
+
+    // X and Y scale should match
+    try expectApprox(p.m[Mat4.idx(0, 0)], m.m[Mat4.idx(0, 0)]);
+    try expectApprox(p.m[Mat4.idx(1, 1)], m.m[Mat4.idx(1, 1)]);
+    // W row/col should match
+    try expectApprox(-1.0, m.m[Mat4.idx(2, 3)]);
 }
