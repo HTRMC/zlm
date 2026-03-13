@@ -393,19 +393,22 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
             const a21 = a.m[idx(2, 1)];
             const a22 = a.m[idx(2, 2)];
 
-            const det = a00 * (a11 * a22 - a12 * a21) - a01 * (a10 * a22 - a12 * a20) + a02 * (a10 * a21 - a11 * a20);
-            const inv_det = 1.0 / det;
+            const cof00 = a11 * a22 - a12 * a21;
+            const cof01 = a12 * a20 - a10 * a22;
+            const cof02 = a10 * a21 - a11 * a20;
+
+            const inv_det = 1.0 / (a00 * cof00 + a01 * cof01 + a02 * cof02);
 
             return Self{ .m = .{
-                (a11 * a22 - a12 * a21) * inv_det,
+                cof00 * inv_det,
                 (a02 * a21 - a01 * a22) * inv_det,
                 (a01 * a12 - a02 * a11) * inv_det,
 
-                (a12 * a20 - a10 * a22) * inv_det,
+                cof01 * inv_det,
                 (a00 * a22 - a02 * a20) * inv_det,
                 (a02 * a10 - a00 * a12) * inv_det,
 
-                (a10 * a21 - a11 * a20) * inv_det,
+                cof02 * inv_det,
                 (a01 * a20 - a00 * a21) * inv_det,
                 (a00 * a11 - a01 * a10) * inv_det,
             } };
@@ -455,30 +458,24 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
         // ── 4x4 only ──
 
         pub fn perspective(fov: T, aspect: T, near: T, far: T) Self {
-            comptime {
-                if (C != 4 or R != 4) @compileError("perspective() requires a 4x4 matrix");
-            }
-            const tan_half_fov = @tan(fov / 2.0);
-            var result = Self{ .m = [_]T{0} ** 16 };
-
-            result.m[idx(0, 0)] = 1.0 / (aspect * tan_half_fov);
-
-            switch (config.graphics_api) {
-                .vulkan => {
-                    result.m[idx(1, 1)] = -1.0 / tan_half_fov;
-                    result.m[idx(2, 2)] = far / (near - far);
-                    result.m[idx(2, 3)] = -1.0;
-                    result.m[idx(3, 2)] = -(far * near) / (far - near);
+            comptime if (C != 4 or R != 4) @compileError("perspective() requires a 4x4 matrix");
+            const thf = @tan(fov / 2.0);
+            const fmn = far - near;
+            const z: T = 0;
+            return Self{ .m = switch (config.graphics_api) {
+                .vulkan => .{
+                    1.0 / (aspect * thf), z, z,                        z,
+                    z,                    -1.0 / thf, z,               z,
+                    z,                    z, far / (near - far),       -1.0,
+                    z,                    z, -(far * near) / fmn,       z,
                 },
-                .opengl => {
-                    result.m[idx(1, 1)] = 1.0 / tan_half_fov;
-                    result.m[idx(2, 2)] = -(far + near) / (far - near);
-                    result.m[idx(2, 3)] = -1.0;
-                    result.m[idx(3, 2)] = -(2.0 * far * near) / (far - near);
+                .opengl => .{
+                    1.0 / (aspect * thf), z, z,                        z,
+                    z,                    1.0 / thf, z,                z,
+                    z,                    z, -(far + near) / fmn,     -1.0,
+                    z,                    z, -(2.0 * far * near) / fmn, z,
                 },
-            }
-
-            return result;
+            } };
         }
 
         pub fn translate(m: Self, v: GenVec3(T)) Self {
@@ -547,33 +544,18 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
         }
 
         pub fn lookAt(eye: GenVec3(T), target: GenVec3(T), up: GenVec3(T)) Self {
-            comptime {
-                if (C != 4 or R != 4) @compileError("lookAt() requires a 4x4 matrix");
-            }
+            comptime if (C != 4 or R != 4) @compileError("lookAt() requires a 4x4 matrix");
             const Vec3T = GenVec3(T);
             const f = Vec3T.normalize(Vec3T.sub(target, eye));
             const s = Vec3T.normalize(Vec3T.cross(f, up));
             const u = Vec3T.cross(s, f);
-
-            var result = Self.identity();
-
-            result.m[idx(0, 0)] = s.x;
-            result.m[idx(1, 0)] = s.y;
-            result.m[idx(2, 0)] = s.z;
-
-            result.m[idx(0, 1)] = u.x;
-            result.m[idx(1, 1)] = u.y;
-            result.m[idx(2, 1)] = u.z;
-
-            result.m[idx(0, 2)] = -f.x;
-            result.m[idx(1, 2)] = -f.y;
-            result.m[idx(2, 2)] = -f.z;
-
-            result.m[idx(3, 0)] = -Vec3T.dot(s, eye);
-            result.m[idx(3, 1)] = -Vec3T.dot(u, eye);
-            result.m[idx(3, 2)] = Vec3T.dot(f, eye);
-
-            return result;
+            const z: T = 0;
+            return Self{ .m = .{
+                 s.x,  u.x, -f.x, z,
+                 s.y,  u.y, -f.y, z,
+                 s.z,  u.z, -f.z, z,
+                -Vec3T.dot(s, eye), -Vec3T.dot(u, eye), Vec3T.dot(f, eye), 1,
+            } };
         }
     };
 }
