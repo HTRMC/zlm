@@ -2,7 +2,7 @@
     .name = .zlm,
     .version = "0.3.0",
     .fingerprint = 0x5c6c0dda83873791,
-    .minimum_zig_version = "0.16.0-dev.3061+9b1eaad13",
+    .minimum_zig_version = "0.16.0",
     .dependencies = .{},
     .paths = .{
         "build.zig",
