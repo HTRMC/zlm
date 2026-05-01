@@ -125,12 +125,30 @@ fn GenVec2(comptime T: type) type {
             };
         }
 
+        pub fn mul(a: Self, b: Self) Self {
+            return Self{
+                .x = a.x * b.x,
+                .y = a.y * b.y,
+            };
+        }
+
+        pub fn div(a: Self, b: Self) Self {
+            return Self{
+                .x = a.x / b.x,
+                .y = a.y / b.y,
+            };
+        }
+
         pub fn dot(a: Self, b: Self) T {
             return a.x * b.x + a.y * b.y;
         }
 
         pub fn length(v: Self) T {
             return @sqrt(dot(v, v));
+        }
+
+        pub fn lengthSquared(v: Self) T {
+            return dot(v, v);
         }
 
         pub fn normalize(v: Self) Self {
@@ -141,6 +159,10 @@ fn GenVec2(comptime T: type) type {
 
         pub fn distance(a: Self, b: Self) T {
             return length(sub(a, b));
+        }
+
+        pub fn distanceSquared(a: Self, b: Self) T {
+            return lengthSquared(sub(a, b));
         }
 
         pub fn min(a: Self, b: Self) Self {
@@ -271,12 +293,32 @@ fn GenVec3(comptime T: type) type {
             };
         }
 
+        pub fn mul(a: Self, b: Self) Self {
+            return Self{
+                .x = a.x * b.x,
+                .y = a.y * b.y,
+                .z = a.z * b.z,
+            };
+        }
+
+        pub fn div(a: Self, b: Self) Self {
+            return Self{
+                .x = a.x / b.x,
+                .y = a.y / b.y,
+                .z = a.z / b.z,
+            };
+        }
+
         pub fn dot(a: Self, b: Self) T {
             return a.x * b.x + a.y * b.y + a.z * b.z;
         }
 
         pub fn length(v: Self) T {
             return @sqrt(dot(v, v));
+        }
+
+        pub fn lengthSquared(v: Self) T {
+            return dot(v, v);
         }
 
         pub fn normalize(v: Self) Self {
@@ -295,6 +337,10 @@ fn GenVec3(comptime T: type) type {
 
         pub fn distance(a: Self, b: Self) T {
             return length(sub(a, b));
+        }
+
+        pub fn distanceSquared(a: Self, b: Self) T {
+            return lengthSquared(sub(a, b));
         }
 
         pub fn min(a: Self, b: Self) Self {
@@ -437,12 +483,34 @@ fn GenVec4(comptime T: type) type {
             };
         }
 
+        pub fn mul(a: Self, b: Self) Self {
+            return Self{
+                .x = a.x * b.x,
+                .y = a.y * b.y,
+                .z = a.z * b.z,
+                .w = a.w * b.w,
+            };
+        }
+
+        pub fn div(a: Self, b: Self) Self {
+            return Self{
+                .x = a.x / b.x,
+                .y = a.y / b.y,
+                .z = a.z / b.z,
+                .w = a.w / b.w,
+            };
+        }
+
         pub fn dot(a: Self, b: Self) T {
             return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
         }
 
         pub fn length(v: Self) T {
             return @sqrt(dot(v, v));
+        }
+
+        pub fn lengthSquared(v: Self) T {
+            return dot(v, v);
         }
 
         pub fn normalize(v: Self) Self {
@@ -453,6 +521,10 @@ fn GenVec4(comptime T: type) type {
 
         pub fn distance(a: Self, b: Self) T {
             return length(sub(a, b));
+        }
+
+        pub fn distanceSquared(a: Self, b: Self) T {
+            return lengthSquared(sub(a, b));
         }
 
         pub fn min(a: Self, b: Self) Self {
@@ -2657,4 +2729,104 @@ test "mat4: lerp midpoint" {
     const b = Mat4.translate(Mat4.identity(), Vec3.init(10, 0, 0));
     const mid = Mat4.lerp(a, b, 0.5);
     try expectApprox(5.0, mid.m[Mat4.idx(3, 0)]);
+}
+
+// ── Vec lengthSquared / distanceSquared / Hadamard mul/div ──
+
+test "vec2: lengthSquared" {
+    const v = Vec2.init(3.0, 4.0);
+    try expectApprox(25.0, Vec2.lengthSquared(v));
+    try expectApprox(0.0, Vec2.lengthSquared(Vec2.init(0, 0)));
+}
+
+test "vec3: lengthSquared" {
+    const v = Vec3.init(1.0, 2.0, 2.0);
+    try expectApprox(9.0, Vec3.lengthSquared(v));
+    try expectApprox(Vec3.length(v) * Vec3.length(v), Vec3.lengthSquared(v));
+}
+
+test "vec4: lengthSquared" {
+    const v = Vec4.init(1.0, 2.0, 3.0, 4.0);
+    try expectApprox(30.0, Vec4.lengthSquared(v));
+}
+
+test "vec2: distanceSquared" {
+    const a = Vec2.init(1.0, 2.0);
+    const b = Vec2.init(4.0, 6.0);
+    try expectApprox(25.0, Vec2.distanceSquared(a, b));
+}
+
+test "vec3: distanceSquared" {
+    const a = Vec3.init(0.0, 0.0, 0.0);
+    const b = Vec3.init(1.0, 2.0, 2.0);
+    try expectApprox(9.0, Vec3.distanceSquared(a, b));
+}
+
+test "vec4: distanceSquared" {
+    const a = Vec4.init(1.0, 1.0, 1.0, 1.0);
+    const b = Vec4.init(2.0, 3.0, 4.0, 5.0);
+    try expectApprox(30.0, Vec4.distanceSquared(a, b));
+}
+
+test "vec2: mul componentwise" {
+    const a = Vec2.init(2.0, 3.0);
+    const b = Vec2.init(4.0, 5.0);
+    const r = Vec2.mul(a, b);
+    try expectApprox(8.0, r.x);
+    try expectApprox(15.0, r.y);
+}
+
+test "vec3: mul componentwise" {
+    const a = Vec3.init(2.0, 3.0, 4.0);
+    const b = Vec3.init(5.0, 6.0, 7.0);
+    const r = Vec3.mul(a, b);
+    try expectApprox(10.0, r.x);
+    try expectApprox(18.0, r.y);
+    try expectApprox(28.0, r.z);
+}
+
+test "vec4: mul componentwise" {
+    const a = Vec4.init(2.0, 3.0, 4.0, 5.0);
+    const b = Vec4.init(6.0, 7.0, 8.0, 9.0);
+    const r = Vec4.mul(a, b);
+    try expectApprox(12.0, r.x);
+    try expectApprox(21.0, r.y);
+    try expectApprox(32.0, r.z);
+    try expectApprox(45.0, r.w);
+}
+
+test "vec2: div componentwise" {
+    const a = Vec2.init(8.0, 15.0);
+    const b = Vec2.init(2.0, 3.0);
+    const r = Vec2.div(a, b);
+    try expectApprox(4.0, r.x);
+    try expectApprox(5.0, r.y);
+}
+
+test "vec3: div componentwise" {
+    const a = Vec3.init(10.0, 18.0, 28.0);
+    const b = Vec3.init(2.0, 3.0, 4.0);
+    const r = Vec3.div(a, b);
+    try expectApprox(5.0, r.x);
+    try expectApprox(6.0, r.y);
+    try expectApprox(7.0, r.z);
+}
+
+test "vec4: div componentwise" {
+    const a = Vec4.init(12.0, 21.0, 32.0, 45.0);
+    const b = Vec4.init(6.0, 7.0, 8.0, 9.0);
+    const r = Vec4.div(a, b);
+    try expectApprox(2.0, r.x);
+    try expectApprox(3.0, r.y);
+    try expectApprox(4.0, r.z);
+    try expectApprox(5.0, r.w);
+}
+
+test "vec3: mul/div roundtrip" {
+    const a = Vec3.init(2.0, 3.0, 4.0);
+    const b = Vec3.init(5.0, 6.0, 7.0);
+    const r = Vec3.div(Vec3.mul(a, b), b);
+    try expectApprox(a.x, r.x);
+    try expectApprox(a.y, r.y);
+    try expectApprox(a.z, r.z);
 }
