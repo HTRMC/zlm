@@ -1077,6 +1077,34 @@ fn GenMat(comptime T: type, comptime C: usize, comptime R: usize, comptime confi
             return result;
         }
 
+        pub fn matrixCompMult(a: Self, b: Self) Self {
+            var result: Self = undefined;
+            for (0..C * R) |i| {
+                result.m[i] = a.m[i] * b.m[i];
+            }
+            return result;
+        }
+
+        pub fn outerProduct(c: anytype, r: anytype) Self {
+            const C_t = @TypeOf(c);
+            const R_t = @TypeOf(r);
+            const c_fields = @typeInfo(C_t).@"struct".fields;
+            const r_fields = @typeInfo(R_t).@"struct".fields;
+            comptime {
+                if (c_fields.len != R) @compileError("outerProduct: column-vec length must equal matrix rows");
+                if (r_fields.len != C) @compileError("outerProduct: row-vec length must equal matrix cols");
+            }
+            var result: Self = undefined;
+            inline for (0..C) |col| {
+                const rv: T = @field(r, r_fields[col].name);
+                inline for (0..R) |row| {
+                    const cv: T = @field(c, c_fields[row].name);
+                    result.m[idx(col, row)] = cv * rv;
+                }
+            }
+            return result;
+        }
+
         // ── Square only (C == R) ──
         pub fn identity() Self {
             comptime if (C != R) @compileError("identity() requires a square matrix");
@@ -3372,4 +3400,66 @@ test "vec4: roundEven" {
     try expectApprox(2.0, r.y);
     try expectApprox(2.0, r.z);
     try expectApprox(4.0, r.w);
+}
+
+test "mat3: matrixCompMult" {
+    const a = Mat3{ .m = .{ 1, 2, 3, 4, 5, 6, 7, 8, 9 } };
+    const b = Mat3{ .m = .{ 9, 8, 7, 6, 5, 4, 3, 2, 1 } };
+    const r = Mat3.matrixCompMult(a, b);
+    try expectApprox(9, r.m[0]);
+    try expectApprox(16, r.m[1]);
+    try expectApprox(21, r.m[2]);
+    try expectApprox(24, r.m[3]);
+    try expectApprox(25, r.m[4]);
+    try expectApprox(24, r.m[5]);
+    try expectApprox(21, r.m[6]);
+    try expectApprox(16, r.m[7]);
+    try expectApprox(9, r.m[8]);
+}
+
+test "mat3: outerProduct vec3 vec3" {
+    const c = Vec3.init(1, 2, 3);
+    const r = Vec3.init(10, 20, 30);
+    const m = Mat3.outerProduct(c, r);
+    // glsl column-major: m[col*R + row] = c[row] * r[col]
+    try expectApprox(10, m.m[0]); // col0 row0
+    try expectApprox(20, m.m[1]); // col0 row1
+    try expectApprox(30, m.m[2]); // col0 row2
+    try expectApprox(20, m.m[3]); // col1 row0
+    try expectApprox(40, m.m[4]);
+    try expectApprox(60, m.m[5]);
+    try expectApprox(30, m.m[6]); // col2 row0
+    try expectApprox(60, m.m[7]);
+    try expectApprox(90, m.m[8]);
+}
+
+test "mat3x4: outerProduct vec4 vec3" {
+    const Mat3x4 = zlm.Mat3x4(f32);
+    const c = Vec4.init(1, 2, 3, 4);
+    const r = Vec3.init(10, 20, 30);
+    const m = Mat3x4.outerProduct(c, r);
+    // 3 cols, 4 rows, glsl: idx = col*4 + row
+    try expectApprox(10, m.m[0]); // col0 row0 = 1*10
+    try expectApprox(20, m.m[1]); // col0 row1 = 2*10
+    try expectApprox(30, m.m[2]);
+    try expectApprox(40, m.m[3]); // col0 row3 = 4*10
+    try expectApprox(20, m.m[4]); // col1 row0 = 1*20
+    try expectApprox(80, m.m[7]); // col1 row3 = 4*20
+    try expectApprox(30, m.m[8]); // col2 row0 = 1*30
+    try expectApprox(120, m.m[11]); // col2 row3 = 4*30
+}
+
+test "mat3: outerProduct Householder reflection" {
+    // I - 2*n*nᵀ should reflect across plane through origin with normal n.
+    const n = Vec3.normalize(Vec3.init(0, 0, 1));
+    const nn = Mat3.outerProduct(n, n);
+    const refl = Mat3.sub(Mat3.identity(), Mat3.scale(nn, 2.0));
+    // Reflecting (1, 2, 3) across z=0 plane should give (1, 2, -3).
+    const v = Vec3.init(1, 2, 3);
+    const x = refl.m[0] * v.x + refl.m[3] * v.y + refl.m[6] * v.z;
+    const y = refl.m[1] * v.x + refl.m[4] * v.y + refl.m[7] * v.z;
+    const z = refl.m[2] * v.x + refl.m[5] * v.y + refl.m[8] * v.z;
+    try expectApprox(1, x);
+    try expectApprox(2, y);
+    try expectApprox(-3, z);
 }
