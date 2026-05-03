@@ -256,6 +256,19 @@ pub fn unpackHalf2x16(p: u32) GenVec2(f32) {
     return .{ .x = @floatCast(x_h), .y = @floatCast(y_h) };
 }
 
+pub fn packDouble2x32(v: GenVec2(u32)) f64 {
+    const bits: u64 = (@as(u64, v.y) << 32) | @as(u64, v.x);
+    return @bitCast(bits);
+}
+
+pub fn unpackDouble2x32(p: f64) GenVec2(u32) {
+    const bits: u64 = @bitCast(p);
+    return .{
+        .x = @truncate(bits),
+        .y = @truncate(bits >> 32),
+    };
+}
+
 fn GenVec2(comptime T: type) type {
     return struct {
         const Self = @This();
@@ -3777,4 +3790,25 @@ test "packHalf2x16 zero" {
     const back = unpackHalf2x16(0);
     try std.testing.expectEqual(@as(f32, 0.0), back.x);
     try std.testing.expectEqual(@as(f32, 0.0), back.y);
+}
+
+test "packDouble2x32 known bits" {
+    const UVec2 = zlm.Vec2(u32);
+    // 1.0 in IEEE 754 double = 0x3FF0_0000_0000_0000
+    const d = packDouble2x32(UVec2.init(0x0000_0000, 0x3FF0_0000));
+    try std.testing.expectEqual(@as(f64, 1.0), d);
+}
+
+test "packDouble2x32 roundtrip" {
+    const UVec2 = zlm.Vec2(u32);
+    const v = UVec2.init(0xDEAD_BEEF, 0xCAFE_BABE);
+    const back = unpackDouble2x32(packDouble2x32(v));
+    try std.testing.expectEqual(v.x, back.x);
+    try std.testing.expectEqual(v.y, back.y);
+}
+
+test "unpackDouble2x32 of known double" {
+    const UVec2 = zlm.Vec2(u32);
+    const back = unpackDouble2x32(@as(f64, 1.0));
+    try std.testing.expectEqual(UVec2.init(0x0000_0000, 0x3FF0_0000), back);
 }
