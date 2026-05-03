@@ -254,6 +254,92 @@ fn GenVec2(comptime T: type) type {
         pub fn greaterThan(a: Self, b: Self) BVec2 {
             return .{ .x = a.x > b.x, .y = a.y > b.y };
         }
+
+        pub fn lessThanEqual(a: Self, b: Self) BVec2 {
+            return .{ .x = a.x <= b.x, .y = a.y <= b.y };
+        }
+
+        pub fn greaterThanEqual(a: Self, b: Self) BVec2 {
+            return .{ .x = a.x >= b.x, .y = a.y >= b.y };
+        }
+
+        pub fn abs(v: Self) Self {
+            return .{ .x = @abs(v.x), .y = @abs(v.y) };
+        }
+
+        pub fn sign(v: Self) Self {
+            return .{ .x = std.math.sign(v.x), .y = std.math.sign(v.y) };
+        }
+
+        pub fn floor(v: Self) Self {
+            return .{ .x = @floor(v.x), .y = @floor(v.y) };
+        }
+
+        pub fn trunc(v: Self) Self {
+            return .{ .x = @trunc(v.x), .y = @trunc(v.y) };
+        }
+
+        pub fn round(v: Self) Self {
+            return .{ .x = @round(v.x), .y = @round(v.y) };
+        }
+
+        pub fn ceil(v: Self) Self {
+            return .{ .x = @ceil(v.x), .y = @ceil(v.y) };
+        }
+
+        pub fn fract(v: Self) Self {
+            return .{ .x = v.x - @floor(v.x), .y = v.y - @floor(v.y) };
+        }
+
+        pub fn mod(a: Self, b: Self) Self {
+            return .{ .x = @mod(a.x, b.x), .y = @mod(a.y, b.y) };
+        }
+
+        pub const ModfResult = struct { ipart: Self, fpart: Self };
+        pub fn modf(v: Self) ModfResult {
+            const rx = std.math.modf(v.x);
+            const ry = std.math.modf(v.y);
+            return .{
+                .ipart = .{ .x = rx.ipart, .y = ry.ipart },
+                .fpart = .{ .x = rx.fpart, .y = ry.fpart },
+            };
+        }
+
+        pub fn fma(a: Self, b: Self, c: Self) Self {
+            return .{
+                .x = @mulAdd(T, a.x, b.x, c.x),
+                .y = @mulAdd(T, a.y, b.y, c.y),
+            };
+        }
+
+        pub const FrexpResult = struct { significand: Self, exponent: [2]i32 };
+        pub fn frexp(v: Self) FrexpResult {
+            const rx = std.math.frexp(v.x);
+            const ry = std.math.frexp(v.y);
+            return .{
+                .significand = .{ .x = rx.significand, .y = ry.significand },
+                .exponent = .{ rx.exponent, ry.exponent },
+            };
+        }
+
+        pub fn ldexp(v: Self, exp: [2]i32) Self {
+            return .{
+                .x = std.math.ldexp(v.x, exp[0]),
+                .y = std.math.ldexp(v.y, exp[1]),
+            };
+        }
+
+        pub fn isNan(v: Self) BVec2 {
+            return .{ .x = std.math.isNan(v.x), .y = std.math.isNan(v.y) };
+        }
+
+        pub fn isInf(v: Self) BVec2 {
+            return .{ .x = std.math.isInf(v.x), .y = std.math.isInf(v.y) };
+        }
+
+        pub fn inverseSqrt(v: Self) Self {
+            return .{ .x = 1.0 / @sqrt(v.x), .y = 1.0 / @sqrt(v.y) };
+        }
     };
 }
 
@@ -439,6 +525,108 @@ fn GenVec3(comptime T: type) type {
 
         pub fn greaterThan(a: Self, b: Self) BVec3 {
             return .{ .x = a.x > b.x, .y = a.y > b.y, .z = a.z > b.z };
+        }
+
+        pub fn lessThanEqual(a: Self, b: Self) BVec3 {
+            return .{ .x = a.x <= b.x, .y = a.y <= b.y, .z = a.z <= b.z };
+        }
+
+        pub fn greaterThanEqual(a: Self, b: Self) BVec3 {
+            return .{ .x = a.x >= b.x, .y = a.y >= b.y, .z = a.z >= b.z };
+        }
+
+        pub fn abs(v: Self) Self {
+            return .{ .x = @abs(v.x), .y = @abs(v.y), .z = @abs(v.z) };
+        }
+
+        pub fn sign(v: Self) Self {
+            return .{ .x = std.math.sign(v.x), .y = std.math.sign(v.y), .z = std.math.sign(v.z) };
+        }
+
+        pub fn floor(v: Self) Self {
+            return .{ .x = @floor(v.x), .y = @floor(v.y), .z = @floor(v.z) };
+        }
+
+        pub fn trunc(v: Self) Self {
+            return .{ .x = @trunc(v.x), .y = @trunc(v.y), .z = @trunc(v.z) };
+        }
+
+        pub fn round(v: Self) Self {
+            return .{ .x = @round(v.x), .y = @round(v.y), .z = @round(v.z) };
+        }
+
+        pub fn ceil(v: Self) Self {
+            return .{ .x = @ceil(v.x), .y = @ceil(v.y), .z = @ceil(v.z) };
+        }
+
+        pub fn fract(v: Self) Self {
+            return .{
+                .x = v.x - @floor(v.x),
+                .y = v.y - @floor(v.y),
+                .z = v.z - @floor(v.z),
+            };
+        }
+
+        pub fn mod(a: Self, b: Self) Self {
+            return .{
+                .x = @mod(a.x, b.x),
+                .y = @mod(a.y, b.y),
+                .z = @mod(a.z, b.z),
+            };
+        }
+
+        pub const ModfResult = struct { ipart: Self, fpart: Self };
+        pub fn modf(v: Self) ModfResult {
+            const rx = std.math.modf(v.x);
+            const ry = std.math.modf(v.y);
+            const rz = std.math.modf(v.z);
+            return .{
+                .ipart = .{ .x = rx.ipart, .y = ry.ipart, .z = rz.ipart },
+                .fpart = .{ .x = rx.fpart, .y = ry.fpart, .z = rz.fpart },
+            };
+        }
+
+        pub fn fma(a: Self, b: Self, c: Self) Self {
+            return .{
+                .x = @mulAdd(T, a.x, b.x, c.x),
+                .y = @mulAdd(T, a.y, b.y, c.y),
+                .z = @mulAdd(T, a.z, b.z, c.z),
+            };
+        }
+
+        pub const FrexpResult = struct { significand: Self, exponent: [3]i32 };
+        pub fn frexp(v: Self) FrexpResult {
+            const rx = std.math.frexp(v.x);
+            const ry = std.math.frexp(v.y);
+            const rz = std.math.frexp(v.z);
+            return .{
+                .significand = .{ .x = rx.significand, .y = ry.significand, .z = rz.significand },
+                .exponent = .{ rx.exponent, ry.exponent, rz.exponent },
+            };
+        }
+
+        pub fn ldexp(v: Self, exp: [3]i32) Self {
+            return .{
+                .x = std.math.ldexp(v.x, exp[0]),
+                .y = std.math.ldexp(v.y, exp[1]),
+                .z = std.math.ldexp(v.z, exp[2]),
+            };
+        }
+
+        pub fn isNan(v: Self) BVec3 {
+            return .{ .x = std.math.isNan(v.x), .y = std.math.isNan(v.y), .z = std.math.isNan(v.z) };
+        }
+
+        pub fn isInf(v: Self) BVec3 {
+            return .{ .x = std.math.isInf(v.x), .y = std.math.isInf(v.y), .z = std.math.isInf(v.z) };
+        }
+
+        pub fn inverseSqrt(v: Self) Self {
+            return .{
+                .x = 1.0 / @sqrt(v.x),
+                .y = 1.0 / @sqrt(v.y),
+                .z = 1.0 / @sqrt(v.z),
+            };
         }
     };
 }
@@ -633,6 +821,135 @@ fn GenVec4(comptime T: type) type {
 
         pub fn greaterThan(a: Self, b: Self) BVec4 {
             return .{ .x = a.x > b.x, .y = a.y > b.y, .z = a.z > b.z, .w = a.w > b.w };
+        }
+
+        pub fn lessThanEqual(a: Self, b: Self) BVec4 {
+            return .{ .x = a.x <= b.x, .y = a.y <= b.y, .z = a.z <= b.z, .w = a.w <= b.w };
+        }
+
+        pub fn greaterThanEqual(a: Self, b: Self) BVec4 {
+            return .{ .x = a.x >= b.x, .y = a.y >= b.y, .z = a.z >= b.z, .w = a.w >= b.w };
+        }
+
+        pub fn abs(v: Self) Self {
+            return .{ .x = @abs(v.x), .y = @abs(v.y), .z = @abs(v.z), .w = @abs(v.w) };
+        }
+
+        pub fn sign(v: Self) Self {
+            return .{
+                .x = std.math.sign(v.x),
+                .y = std.math.sign(v.y),
+                .z = std.math.sign(v.z),
+                .w = std.math.sign(v.w),
+            };
+        }
+
+        pub fn floor(v: Self) Self {
+            return .{ .x = @floor(v.x), .y = @floor(v.y), .z = @floor(v.z), .w = @floor(v.w) };
+        }
+
+        pub fn trunc(v: Self) Self {
+            return .{ .x = @trunc(v.x), .y = @trunc(v.y), .z = @trunc(v.z), .w = @trunc(v.w) };
+        }
+
+        pub fn round(v: Self) Self {
+            return .{ .x = @round(v.x), .y = @round(v.y), .z = @round(v.z), .w = @round(v.w) };
+        }
+
+        pub fn ceil(v: Self) Self {
+            return .{ .x = @ceil(v.x), .y = @ceil(v.y), .z = @ceil(v.z), .w = @ceil(v.w) };
+        }
+
+        pub fn fract(v: Self) Self {
+            return .{
+                .x = v.x - @floor(v.x),
+                .y = v.y - @floor(v.y),
+                .z = v.z - @floor(v.z),
+                .w = v.w - @floor(v.w),
+            };
+        }
+
+        pub fn mod(a: Self, b: Self) Self {
+            return .{
+                .x = @mod(a.x, b.x),
+                .y = @mod(a.y, b.y),
+                .z = @mod(a.z, b.z),
+                .w = @mod(a.w, b.w),
+            };
+        }
+
+        pub const ModfResult = struct { ipart: Self, fpart: Self };
+        pub fn modf(v: Self) ModfResult {
+            const rx = std.math.modf(v.x);
+            const ry = std.math.modf(v.y);
+            const rz = std.math.modf(v.z);
+            const rw = std.math.modf(v.w);
+            return .{
+                .ipart = .{ .x = rx.ipart, .y = ry.ipart, .z = rz.ipart, .w = rw.ipart },
+                .fpart = .{ .x = rx.fpart, .y = ry.fpart, .z = rz.fpart, .w = rw.fpart },
+            };
+        }
+
+        pub fn fma(a: Self, b: Self, c: Self) Self {
+            return .{
+                .x = @mulAdd(T, a.x, b.x, c.x),
+                .y = @mulAdd(T, a.y, b.y, c.y),
+                .z = @mulAdd(T, a.z, b.z, c.z),
+                .w = @mulAdd(T, a.w, b.w, c.w),
+            };
+        }
+
+        pub const FrexpResult = struct { significand: Self, exponent: [4]i32 };
+        pub fn frexp(v: Self) FrexpResult {
+            const rx = std.math.frexp(v.x);
+            const ry = std.math.frexp(v.y);
+            const rz = std.math.frexp(v.z);
+            const rw = std.math.frexp(v.w);
+            return .{
+                .significand = .{
+                    .x = rx.significand,
+                    .y = ry.significand,
+                    .z = rz.significand,
+                    .w = rw.significand,
+                },
+                .exponent = .{ rx.exponent, ry.exponent, rz.exponent, rw.exponent },
+            };
+        }
+
+        pub fn ldexp(v: Self, exp: [4]i32) Self {
+            return .{
+                .x = std.math.ldexp(v.x, exp[0]),
+                .y = std.math.ldexp(v.y, exp[1]),
+                .z = std.math.ldexp(v.z, exp[2]),
+                .w = std.math.ldexp(v.w, exp[3]),
+            };
+        }
+
+        pub fn isNan(v: Self) BVec4 {
+            return .{
+                .x = std.math.isNan(v.x),
+                .y = std.math.isNan(v.y),
+                .z = std.math.isNan(v.z),
+                .w = std.math.isNan(v.w),
+            };
+        }
+
+        pub fn isInf(v: Self) BVec4 {
+            return .{
+                .x = std.math.isInf(v.x),
+                .y = std.math.isInf(v.y),
+                .z = std.math.isInf(v.z),
+                .w = std.math.isInf(v.w),
+            };
+        }
+
+        pub fn inverseSqrt(v: Self) Self {
+            return .{
+                .x = 1.0 / @sqrt(v.x),
+                .y = 1.0 / @sqrt(v.y),
+                .z = 1.0 / @sqrt(v.z),
+                .w = 1.0 / @sqrt(v.w),
+            };
         }
     };
 }
@@ -2829,4 +3146,146 @@ test "vec3: mul/div roundtrip" {
     try expectApprox(a.x, r.x);
     try expectApprox(a.y, r.y);
     try expectApprox(a.z, r.z);
+}
+
+test "vec3: abs sign" {
+    const v = Vec3.init(-1.5, 0.0, 2.5);
+    const a = Vec3.abs(v);
+    try expectApprox(1.5, a.x);
+    try expectApprox(0.0, a.y);
+    try expectApprox(2.5, a.z);
+    const s = Vec3.sign(v);
+    try expectApprox(-1.0, s.x);
+    try expectApprox(0.0, s.y);
+    try expectApprox(1.0, s.z);
+}
+
+test "vec3: floor trunc round ceil" {
+    const v = Vec3.init(1.7, -1.7, 2.5);
+    const fl = Vec3.floor(v);
+    try expectApprox(1.0, fl.x);
+    try expectApprox(-2.0, fl.y);
+    try expectApprox(2.0, fl.z);
+    const tr = Vec3.trunc(v);
+    try expectApprox(1.0, tr.x);
+    try expectApprox(-1.0, tr.y);
+    try expectApprox(2.0, tr.z);
+    const rd = Vec3.round(v);
+    try expectApprox(2.0, rd.x);
+    try expectApprox(-2.0, rd.y);
+    try expectApprox(3.0, rd.z);
+    const cl = Vec3.ceil(v);
+    try expectApprox(2.0, cl.x);
+    try expectApprox(-1.0, cl.y);
+    try expectApprox(3.0, cl.z);
+}
+
+test "vec3: fract" {
+    const v = Vec3.init(1.25, -0.75, 3.0);
+    const f = Vec3.fract(v);
+    try expectApprox(0.25, f.x);
+    try expectApprox(0.25, f.y);
+    try expectApprox(0.0, f.z);
+}
+
+test "vec3: mod" {
+    const a = Vec3.init(5.5, -1.5, 7.0);
+    const b = Vec3.init(2.0, 2.0, 3.0);
+    const m = Vec3.mod(a, b);
+    try expectApprox(1.5, m.x);
+    try expectApprox(0.5, m.y);
+    try expectApprox(1.0, m.z);
+}
+
+test "vec3: modf" {
+    const v = Vec3.init(3.25, -2.75, 0.5);
+    const r = Vec3.modf(v);
+    try expectApprox(3.0, r.ipart.x);
+    try expectApprox(-2.0, r.ipart.y);
+    try expectApprox(0.0, r.ipart.z);
+    try expectApprox(0.25, r.fpart.x);
+    try expectApprox(-0.75, r.fpart.y);
+    try expectApprox(0.5, r.fpart.z);
+}
+
+test "vec3: fma" {
+    const a = Vec3.init(2.0, 3.0, 4.0);
+    const b = Vec3.init(5.0, 6.0, 7.0);
+    const c = Vec3.init(1.0, 1.0, 1.0);
+    const r = Vec3.fma(a, b, c);
+    try expectApprox(11.0, r.x);
+    try expectApprox(19.0, r.y);
+    try expectApprox(29.0, r.z);
+}
+
+test "vec3: frexp ldexp roundtrip" {
+    const v = Vec3.init(6.0, -1.5, 32.0);
+    const r = Vec3.frexp(v);
+    const back = Vec3.ldexp(r.significand, r.exponent);
+    try expectApprox(v.x, back.x);
+    try expectApprox(v.y, back.y);
+    try expectApprox(v.z, back.z);
+}
+
+test "vec3: isNan isInf" {
+    const v = Vec3.init(std.math.nan(f32), std.math.inf(f32), 1.0);
+    const n = Vec3.isNan(v);
+    try std.testing.expect(n.x);
+    try std.testing.expect(!n.y);
+    try std.testing.expect(!n.z);
+    const i = Vec3.isInf(v);
+    try std.testing.expect(!i.x);
+    try std.testing.expect(i.y);
+    try std.testing.expect(!i.z);
+}
+
+test "vec3: inverseSqrt" {
+    const v = Vec3.init(4.0, 16.0, 1.0);
+    const r = Vec3.inverseSqrt(v);
+    try expectApprox(0.5, r.x);
+    try expectApprox(0.25, r.y);
+    try expectApprox(1.0, r.z);
+}
+
+test "vec3: lessThanEqual greaterThanEqual" {
+    const a = Vec3.init(1.0, 2.0, 3.0);
+    const b = Vec3.init(2.0, 2.0, 1.0);
+    const le = Vec3.lessThanEqual(a, b);
+    try std.testing.expect(le.x);
+    try std.testing.expect(le.y);
+    try std.testing.expect(!le.z);
+    const ge = Vec3.greaterThanEqual(a, b);
+    try std.testing.expect(!ge.x);
+    try std.testing.expect(ge.y);
+    try std.testing.expect(ge.z);
+}
+
+test "vec2: abs floor mod fma" {
+    const v = Vec2.init(-2.5, 3.7);
+    const a = Vec2.abs(v);
+    try expectApprox(2.5, a.x);
+    try expectApprox(3.7, a.y);
+    const fl = Vec2.floor(v);
+    try expectApprox(-3.0, fl.x);
+    try expectApprox(3.0, fl.y);
+    const m = Vec2.mod(Vec2.init(7.0, -1.5), Vec2.init(3.0, 2.0));
+    try expectApprox(1.0, m.x);
+    try expectApprox(0.5, m.y);
+    const f = Vec2.fma(Vec2.init(2.0, 3.0), Vec2.init(4.0, 5.0), Vec2.init(1.0, 1.0));
+    try expectApprox(9.0, f.x);
+    try expectApprox(16.0, f.y);
+}
+
+test "vec4: abs floor mod fma inverseSqrt" {
+    const v = Vec4.init(-1.0, 2.5, -3.5, 4.0);
+    const a = Vec4.abs(v);
+    try expectApprox(1.0, a.x);
+    try expectApprox(2.5, a.y);
+    try expectApprox(3.5, a.z);
+    try expectApprox(4.0, a.w);
+    const inv = Vec4.inverseSqrt(Vec4.init(4.0, 16.0, 1.0, 25.0));
+    try expectApprox(0.5, inv.x);
+    try expectApprox(0.25, inv.y);
+    try expectApprox(1.0, inv.z);
+    try expectApprox(0.2, inv.w);
 }
