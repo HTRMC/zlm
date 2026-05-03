@@ -93,6 +93,75 @@ pub const BVec4 = struct {
     }
 };
 
+pub fn MulExtended(comptime T: type) type {
+    return struct { hi: T, lo: T };
+}
+
+pub fn umulExtended(comptime T: type, a: T, b: T) MulExtended(T) {
+    comptime {
+        const info = @typeInfo(T);
+        if (info != .int or info.int.signedness != .unsigned)
+            @compileError("umulExtended requires unsigned integer T");
+    }
+    const Wide = std.meta.Int(.unsigned, @bitSizeOf(T) * 2);
+    const wide: Wide = @as(Wide, a) * @as(Wide, b);
+    const shift: std.math.Log2Int(Wide) = @intCast(@bitSizeOf(T));
+    return .{ .lo = @truncate(wide), .hi = @truncate(wide >> shift) };
+}
+
+pub fn imulExtended(comptime T: type, a: T, b: T) MulExtended(T) {
+    comptime {
+        const info = @typeInfo(T);
+        if (info != .int or info.int.signedness != .signed)
+            @compileError("imulExtended requires signed integer T");
+    }
+    const Wide = std.meta.Int(.signed, @bitSizeOf(T) * 2);
+    const wide: Wide = @as(Wide, a) * @as(Wide, b);
+    const shift: std.math.Log2Int(Wide) = @intCast(@bitSizeOf(T));
+    return .{ .lo = @truncate(wide), .hi = @truncate(wide >> shift) };
+}
+
+pub fn bitfieldExtract(comptime T: type, value: T, offset: u32, bits: u32) T {
+    comptime if (@typeInfo(T) != .int) @compileError("bitfieldExtract requires integer T");
+    std.debug.assert(offset + bits <= @bitSizeOf(T));
+    if (bits == 0) return 0;
+
+    const total_bits = @bitSizeOf(T);
+    const ShiftInt = std.math.Log2Int(T);
+    const left: ShiftInt = @intCast(total_bits - offset - bits);
+    const right: ShiftInt = @intCast(total_bits - bits);
+
+    if (@typeInfo(T).int.signedness == .signed) {
+        const U = std.meta.Int(.unsigned, total_bits);
+        const u: U = @bitCast(value);
+        const shifted_left: U = u << left;
+        const s: T = @bitCast(shifted_left);
+        return s >> right; // arithmetic shift sign-extends
+    } else {
+        return (value << left) >> right;
+    }
+}
+
+pub fn bitfieldInsert(comptime T: type, base: T, insert: T, offset: u32, bits: u32) T {
+    comptime if (@typeInfo(T) != .int) @compileError("bitfieldInsert requires integer T");
+    std.debug.assert(offset + bits <= @bitSizeOf(T));
+    if (bits == 0) return base;
+
+    const total_bits = @bitSizeOf(T);
+    const U = std.meta.Int(.unsigned, total_bits);
+    const ShiftU: type = std.math.Log2Int(U);
+
+    const off: ShiftU = @intCast(offset);
+    const ones_lo: U = if (bits == total_bits) std.math.maxInt(U) else (@as(U, 1) << @intCast(bits)) - 1;
+    const window_mask: U = ones_lo << off;
+
+    const base_u: U = @bitCast(base);
+    const insert_u: U = @bitCast(insert);
+    const cleared = base_u & ~window_mask;
+    const placed = (insert_u & ones_lo) << off;
+    return @bitCast(cleared | placed);
+}
+
 fn GenVec2(comptime T: type) type {
     return struct {
         const Self = @This();
@@ -3462,4 +3531,85 @@ test "mat3: outerProduct Householder reflection" {
     try expectApprox(1, x);
     try expectApprox(2, y);
     try expectApprox(-3, z);
+}
+
+test "umulExtended u32" {
+    const r = umulExtended(u32, 0xFFFF_FFFF, 2);
+    try std.testing.expectEqual(@as(u32, 0xFFFF_FFFE), r.lo);
+    try std.testing.expectEqual(@as(u32, 1), r.hi);
+
+    const r2 = umulExtended(u32, 0x1234_5678, 0x1000);
+    // 0x1234_5678 * 0x1000 = 0x12_3456_7800_0
+    try std.testing.expectEqual(@as(u32, 0x4567_8000), r2.lo);
+    try std.testing.expectEqual(@as(u32, 0x123), r2.hi);
+}
+
+test "umulExtended u32 small inputs no carry" {
+    const r = umulExtended(u32, 7, 9);
+    try std.testing.expectEqual(@as(u32, 63), r.lo);
+    try std.testing.expectEqual(@as(u32, 0), r.hi);
+}
+
+test "imulExtended i32 negative" {
+    const r = imulExtended(i32, -3, 7);
+    try std.testing.expectEqual(@as(i32, -21), r.lo);
+    try std.testing.expectEqual(@as(i32, -1), r.hi); // sign-extended
+}
+
+test "imulExtended i32 large positive" {
+    const r = imulExtended(i32, 0x4000_0000, 4);
+    // 2^30 * 4 = 2^32 → lo = 0, hi = 1
+    try std.testing.expectEqual(@as(i32, 0), r.lo);
+    try std.testing.expectEqual(@as(i32, 1), r.hi);
+}
+
+test "bitfieldExtract u32" {
+    const v: u32 = 0xFF0F_AACC;
+    const out = bitfieldExtract(u32, v, 8, 8);
+    try std.testing.expectEqual(@as(u32, 0xAA), out);
+
+    // Full width
+    const out_full = bitfieldExtract(u32, v, 0, 32);
+    try std.testing.expectEqual(v, out_full);
+
+    // Zero bits → 0
+    const out_zero = bitfieldExtract(u32, v, 4, 0);
+    try std.testing.expectEqual(@as(u32, 0), out_zero);
+}
+
+test "bitfieldExtract i32 sign extends" {
+    // 0xF0 at offset 0, 8 bits, signed → top bit of field is 1 → sign-extend to -16.
+    const v: i32 = @bitCast(@as(u32, 0xF0));
+    const out = bitfieldExtract(i32, v, 0, 8);
+    try std.testing.expectEqual(@as(i32, -16), out);
+
+    // Same field but unsigned interpretation should give 240.
+    const out_u = bitfieldExtract(u32, 0xF0, 0, 8);
+    try std.testing.expectEqual(@as(u32, 240), out_u);
+}
+
+test "bitfieldInsert u32" {
+    const base: u32 = 0xAABB_CCDD;
+    const out = bitfieldInsert(u32, base, 0xFF, 8, 8);
+    try std.testing.expectEqual(@as(u32, 0xAABB_FFDD), out);
+
+    // Insert wider than the value's low bits — extra high bits of insert ignored.
+    const out2 = bitfieldInsert(u32, 0, 0x1FF, 0, 8);
+    try std.testing.expectEqual(@as(u32, 0xFF), out2);
+
+    // Zero-bit insert is a no-op.
+    const out3 = bitfieldInsert(u32, base, 0xFF, 0, 0);
+    try std.testing.expectEqual(base, out3);
+}
+
+test "bitfieldInsert full width" {
+    const out = bitfieldInsert(u32, 0xDEAD_BEEF, 0xCAFE_BABE, 0, 32);
+    try std.testing.expectEqual(@as(u32, 0xCAFE_BABE), out);
+}
+
+test "bitfieldInsert/Extract roundtrip" {
+    const original: u32 = 0xAB;
+    const carrier = bitfieldInsert(u32, 0xFFFF_FFFF, original, 12, 8);
+    const recovered = bitfieldExtract(u32, carrier, 12, 8);
+    try std.testing.expectEqual(original, recovered);
 }
