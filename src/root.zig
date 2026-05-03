@@ -340,6 +340,20 @@ fn GenVec2(comptime T: type) type {
         pub fn inverseSqrt(v: Self) Self {
             return .{ .x = 1.0 / @sqrt(v.x), .y = 1.0 / @sqrt(v.y) };
         }
+
+        fn roundEvenScalar(x: T) T {
+            const t = @trunc(x);
+            const f = @abs(x - t);
+            if (f == 0.5 and @mod(t, 2.0) == 0.0) return t;
+            return @round(x);
+        }
+
+        pub fn roundEven(v: Self) Self {
+            return .{
+                .x = roundEvenScalar(v.x),
+                .y = roundEvenScalar(v.y),
+            };
+        }
     };
 }
 
@@ -626,6 +640,21 @@ fn GenVec3(comptime T: type) type {
                 .x = 1.0 / @sqrt(v.x),
                 .y = 1.0 / @sqrt(v.y),
                 .z = 1.0 / @sqrt(v.z),
+            };
+        }
+
+        fn roundEvenScalar(x: T) T {
+            const t = @trunc(x);
+            const f = @abs(x - t);
+            if (f == 0.5 and @mod(t, 2.0) == 0.0) return t;
+            return @round(x);
+        }
+
+        pub fn roundEven(v: Self) Self {
+            return .{
+                .x = roundEvenScalar(v.x),
+                .y = roundEvenScalar(v.y),
+                .z = roundEvenScalar(v.z),
             };
         }
     };
@@ -949,6 +978,22 @@ fn GenVec4(comptime T: type) type {
                 .y = 1.0 / @sqrt(v.y),
                 .z = 1.0 / @sqrt(v.z),
                 .w = 1.0 / @sqrt(v.w),
+            };
+        }
+
+        fn roundEvenScalar(x: T) T {
+            const t = @trunc(x);
+            const f = @abs(x - t);
+            if (f == 0.5 and @mod(t, 2.0) == 0.0) return t;
+            return @round(x);
+        }
+
+        pub fn roundEven(v: Self) Self {
+            return .{
+                .x = roundEvenScalar(v.x),
+                .y = roundEvenScalar(v.y),
+                .z = roundEvenScalar(v.z),
+                .w = roundEvenScalar(v.w),
             };
         }
     };
@@ -3288,4 +3333,43 @@ test "vec4: abs floor mod fma inverseSqrt" {
     try expectApprox(0.25, inv.y);
     try expectApprox(1.0, inv.z);
     try expectApprox(0.2, inv.w);
+}
+
+test "vec3: roundEven ties to even" {
+    const r = Vec3.roundEven(Vec3.init(0.5, 1.5, 2.5));
+    try expectApprox(0.0, r.x);
+    try expectApprox(2.0, r.y);
+    try expectApprox(2.0, r.z);
+    const r2 = Vec3.roundEven(Vec3.init(3.5, 4.5, 5.5));
+    try expectApprox(4.0, r2.x);
+    try expectApprox(4.0, r2.y);
+    try expectApprox(6.0, r2.z);
+}
+
+test "vec3: roundEven non-ties" {
+    const r = Vec3.roundEven(Vec3.init(1.4, 1.6, 2.49));
+    try expectApprox(1.0, r.x);
+    try expectApprox(2.0, r.y);
+    try expectApprox(2.0, r.z);
+}
+
+test "vec3: roundEven negative" {
+    const r = Vec3.roundEven(Vec3.init(-0.5, -1.5, -2.5));
+    try expectApprox(0.0, r.x);
+    try expectApprox(-2.0, r.y);
+    try expectApprox(-2.0, r.z);
+}
+
+test "vec2: roundEven" {
+    const r = Vec2.roundEven(Vec2.init(0.5, 1.5));
+    try expectApprox(0.0, r.x);
+    try expectApprox(2.0, r.y);
+}
+
+test "vec4: roundEven" {
+    const r = Vec4.roundEven(Vec4.init(0.5, 1.5, 2.5, 3.5));
+    try expectApprox(0.0, r.x);
+    try expectApprox(2.0, r.y);
+    try expectApprox(2.0, r.z);
+    try expectApprox(4.0, r.w);
 }
