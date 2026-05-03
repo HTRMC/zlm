@@ -162,6 +162,100 @@ pub fn bitfieldInsert(comptime T: type, base: T, insert: T, offset: u32, bits: u
     return @bitCast(cleared | placed);
 }
 
+pub fn packUnorm2x16(v: GenVec2(f32)) u32 {
+    const x: u32 = @intFromFloat(@round(std.math.clamp(v.x, 0, 1) * 65535.0));
+    const y: u32 = @intFromFloat(@round(std.math.clamp(v.y, 0, 1) * 65535.0));
+    return (y << 16) | x;
+}
+
+pub fn unpackUnorm2x16(p: u32) GenVec2(f32) {
+    const x: u16 = @truncate(p);
+    const y: u16 = @truncate(p >> 16);
+    return .{
+        .x = @as(f32, @floatFromInt(x)) / 65535.0,
+        .y = @as(f32, @floatFromInt(y)) / 65535.0,
+    };
+}
+
+pub fn packSnorm2x16(v: GenVec2(f32)) u32 {
+    const x_i: i16 = @intFromFloat(@round(std.math.clamp(v.x, -1, 1) * 32767.0));
+    const y_i: i16 = @intFromFloat(@round(std.math.clamp(v.y, -1, 1) * 32767.0));
+    const x_u: u32 = @as(u16, @bitCast(x_i));
+    const y_u: u32 = @as(u16, @bitCast(y_i));
+    return (y_u << 16) | x_u;
+}
+
+pub fn unpackSnorm2x16(p: u32) GenVec2(f32) {
+    const x_u: u16 = @truncate(p);
+    const y_u: u16 = @truncate(p >> 16);
+    const x_i: i16 = @bitCast(x_u);
+    const y_i: i16 = @bitCast(y_u);
+    return .{
+        .x = std.math.clamp(@as(f32, @floatFromInt(x_i)) / 32767.0, -1.0, 1.0),
+        .y = std.math.clamp(@as(f32, @floatFromInt(y_i)) / 32767.0, -1.0, 1.0),
+    };
+}
+
+pub fn packUnorm4x8(v: GenVec4(f32)) u32 {
+    const x: u32 = @intFromFloat(@round(std.math.clamp(v.x, 0, 1) * 255.0));
+    const y: u32 = @intFromFloat(@round(std.math.clamp(v.y, 0, 1) * 255.0));
+    const z: u32 = @intFromFloat(@round(std.math.clamp(v.z, 0, 1) * 255.0));
+    const w: u32 = @intFromFloat(@round(std.math.clamp(v.w, 0, 1) * 255.0));
+    return (w << 24) | (z << 16) | (y << 8) | x;
+}
+
+pub fn unpackUnorm4x8(p: u32) GenVec4(f32) {
+    const x: u8 = @truncate(p);
+    const y: u8 = @truncate(p >> 8);
+    const z: u8 = @truncate(p >> 16);
+    const w: u8 = @truncate(p >> 24);
+    return .{
+        .x = @as(f32, @floatFromInt(x)) / 255.0,
+        .y = @as(f32, @floatFromInt(y)) / 255.0,
+        .z = @as(f32, @floatFromInt(z)) / 255.0,
+        .w = @as(f32, @floatFromInt(w)) / 255.0,
+    };
+}
+
+pub fn packSnorm4x8(v: GenVec4(f32)) u32 {
+    const x_i: i8 = @intFromFloat(@round(std.math.clamp(v.x, -1, 1) * 127.0));
+    const y_i: i8 = @intFromFloat(@round(std.math.clamp(v.y, -1, 1) * 127.0));
+    const z_i: i8 = @intFromFloat(@round(std.math.clamp(v.z, -1, 1) * 127.0));
+    const w_i: i8 = @intFromFloat(@round(std.math.clamp(v.w, -1, 1) * 127.0));
+    const x_u: u32 = @as(u8, @bitCast(x_i));
+    const y_u: u32 = @as(u8, @bitCast(y_i));
+    const z_u: u32 = @as(u8, @bitCast(z_i));
+    const w_u: u32 = @as(u8, @bitCast(w_i));
+    return (w_u << 24) | (z_u << 16) | (y_u << 8) | x_u;
+}
+
+pub fn unpackSnorm4x8(p: u32) GenVec4(f32) {
+    const x_i: i8 = @bitCast(@as(u8, @truncate(p)));
+    const y_i: i8 = @bitCast(@as(u8, @truncate(p >> 8)));
+    const z_i: i8 = @bitCast(@as(u8, @truncate(p >> 16)));
+    const w_i: i8 = @bitCast(@as(u8, @truncate(p >> 24)));
+    return .{
+        .x = std.math.clamp(@as(f32, @floatFromInt(x_i)) / 127.0, -1.0, 1.0),
+        .y = std.math.clamp(@as(f32, @floatFromInt(y_i)) / 127.0, -1.0, 1.0),
+        .z = std.math.clamp(@as(f32, @floatFromInt(z_i)) / 127.0, -1.0, 1.0),
+        .w = std.math.clamp(@as(f32, @floatFromInt(w_i)) / 127.0, -1.0, 1.0),
+    };
+}
+
+pub fn packHalf2x16(v: GenVec2(f32)) u32 {
+    const x_h: f16 = @floatCast(v.x);
+    const y_h: f16 = @floatCast(v.y);
+    const x_u: u32 = @as(u16, @bitCast(x_h));
+    const y_u: u32 = @as(u16, @bitCast(y_h));
+    return (y_u << 16) | x_u;
+}
+
+pub fn unpackHalf2x16(p: u32) GenVec2(f32) {
+    const x_h: f16 = @bitCast(@as(u16, @truncate(p)));
+    const y_h: f16 = @bitCast(@as(u16, @truncate(p >> 16)));
+    return .{ .x = @floatCast(x_h), .y = @floatCast(y_h) };
+}
+
 fn GenVec2(comptime T: type) type {
     return struct {
         const Self = @This();
@@ -3612,4 +3706,75 @@ test "bitfieldInsert/Extract roundtrip" {
     const carrier = bitfieldInsert(u32, 0xFFFF_FFFF, original, 12, 8);
     const recovered = bitfieldExtract(u32, carrier, 12, 8);
     try std.testing.expectEqual(original, recovered);
+}
+
+test "packUnorm2x16 known values" {
+    try std.testing.expectEqual(@as(u32, 0xFFFF_FFFF), packUnorm2x16(Vec2.init(1.0, 1.0)));
+    try std.testing.expectEqual(@as(u32, 0x0000_0000), packUnorm2x16(Vec2.init(0.0, 0.0)));
+    // 0.5 → round(0.5 * 65535) = 32768 = 0x8000
+    try std.testing.expectEqual(@as(u32, 0x8000_8000), packUnorm2x16(Vec2.init(0.5, 0.5)));
+}
+
+test "packUnorm2x16 clamps out-of-range" {
+    try std.testing.expectEqual(@as(u32, 0xFFFF_FFFF), packUnorm2x16(Vec2.init(2.0, 5.0)));
+    try std.testing.expectEqual(@as(u32, 0x0000_0000), packUnorm2x16(Vec2.init(-1.0, -0.5)));
+}
+
+test "packUnorm2x16 roundtrip" {
+    const v = Vec2.init(0.25, 0.75);
+    const back = unpackUnorm2x16(packUnorm2x16(v));
+    try std.testing.expectApproxEqAbs(v.x, back.x, 1e-4);
+    try std.testing.expectApproxEqAbs(v.y, back.y, 1e-4);
+}
+
+test "packSnorm2x16 known values" {
+    try std.testing.expectEqual(@as(u32, 0x7FFF_7FFF), packSnorm2x16(Vec2.init(1.0, 1.0)));
+    try std.testing.expectEqual(@as(u32, 0x8001_8001), packSnorm2x16(Vec2.init(-1.0, -1.0)));
+}
+
+test "packSnorm2x16 roundtrip" {
+    const v = Vec2.init(-0.5, 0.5);
+    const back = unpackSnorm2x16(packSnorm2x16(v));
+    try std.testing.expectApproxEqAbs(v.x, back.x, 1e-4);
+    try std.testing.expectApproxEqAbs(v.y, back.y, 1e-4);
+}
+
+test "packUnorm4x8 roundtrip" {
+    const v = Vec4.init(0.0, 0.25, 0.5, 1.0);
+    const back = unpackUnorm4x8(packUnorm4x8(v));
+    try std.testing.expectApproxEqAbs(v.x, back.x, 1.0 / 255.0);
+    try std.testing.expectApproxEqAbs(v.y, back.y, 1.0 / 255.0);
+    try std.testing.expectApproxEqAbs(v.z, back.z, 1.0 / 255.0);
+    try std.testing.expectApproxEqAbs(v.w, back.w, 1.0 / 255.0);
+}
+
+test "packUnorm4x8 byte order" {
+    // Channels go x→low byte, w→high byte.
+    const p = packUnorm4x8(Vec4.init(0.0, 0.0, 0.0, 1.0));
+    try std.testing.expectEqual(@as(u32, 0xFF00_0000), p);
+    const p2 = packUnorm4x8(Vec4.init(1.0, 0.0, 0.0, 0.0));
+    try std.testing.expectEqual(@as(u32, 0x0000_00FF), p2);
+}
+
+test "packSnorm4x8 roundtrip" {
+    const v = Vec4.init(-1.0, -0.5, 0.5, 1.0);
+    const back = unpackSnorm4x8(packSnorm4x8(v));
+    try std.testing.expectApproxEqAbs(v.x, back.x, 1.0 / 127.0);
+    try std.testing.expectApproxEqAbs(v.y, back.y, 1.0 / 127.0);
+    try std.testing.expectApproxEqAbs(v.z, back.z, 1.0 / 127.0);
+    try std.testing.expectApproxEqAbs(v.w, back.w, 1.0 / 127.0);
+}
+
+test "packHalf2x16 roundtrip" {
+    const v = Vec2.init(1.5, -2.25);
+    const back = unpackHalf2x16(packHalf2x16(v));
+    try std.testing.expectApproxEqAbs(v.x, back.x, 1e-3);
+    try std.testing.expectApproxEqAbs(v.y, back.y, 1e-3);
+}
+
+test "packHalf2x16 zero" {
+    try std.testing.expectEqual(@as(u32, 0), packHalf2x16(Vec2.init(0.0, 0.0)));
+    const back = unpackHalf2x16(0);
+    try std.testing.expectEqual(@as(f32, 0.0), back.x);
+    try std.testing.expectEqual(@as(f32, 0.0), back.y);
 }
